@@ -136,7 +136,7 @@ const Page = () => {
 
       const base64Image = await toBase64(selectedImage)
 
-      const res = await fetch("/api/analisis", {
+      const res = await fetch("/api/grading", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64Image }),
@@ -164,7 +164,7 @@ const Page = () => {
     <main className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Scan Sampah
+          Upload Tempat Kotor
         </h1>
         
         {/* Upload Options */}
