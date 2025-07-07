@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Image from "next/image";
 
 export default function Page() {
   const [nama, setNama] = useState("");
@@ -58,8 +59,10 @@ export default function Page() {
       {/* Left side - Illustration */}
       <div className="flex-1 bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500 flex items-center justify-center p-8">
         <div className="max-w-2xl">
-          <img
+          <Image
             src="/api/placeholder/800/600"
+            width={500}
+            height={500}
             alt="Ilustrasi komunitas di pantai yang sedang membersihkan sampah dengan tempat sampah hijau untuk daur ulang dan tempat sampah merah, menunjukkan aktivitas pembersihan lingkungan berkelanjutan di tepi pantai dengan pohon kelapa"
             className="w-full h-auto rounded-lg shadow-lg"
           />

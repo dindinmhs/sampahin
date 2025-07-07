@@ -7,6 +7,7 @@ import { ConnectSupabaseSteps } from "@/components/tutorial/connect-supabase-ste
 import { SignUpUserSteps } from "@/components/tutorial/sign-up-user-steps";
 import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
+import MenuDropdown from "@/components/maps/menu";
 
 export default function Home() {
   return (
@@ -19,6 +20,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <DeployButton />
               </div>
+            <MenuDropdown/>
             </div>
             {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
           </div>
