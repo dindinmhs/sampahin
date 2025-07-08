@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Image from 'next/image'
 
 export default function Page() {
   const [nama, setNama] = useState("");
@@ -56,14 +57,14 @@ export default function Page() {
   return (
     <div className="min-h-screen flex">
       {/* Left side - Illustration */}
-      <div className="flex-1 bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500 flex items-center justify-center p-8">
-        <div className="max-w-2xl">
-          <img
-            src="/api/placeholder/800/600"
-            alt="Ilustrasi komunitas di pantai yang sedang membersihkan sampah dengan tempat sampah hijau untuk daur ulang dan tempat sampah merah, menunjukkan aktivitas pembersihan lingkungan berkelanjutan di tepi pantai dengan pohon kelapa"
-            className="w-full h-auto rounded-lg shadow-lg"
-          />
-        </div>
+      <div className="flex-1 bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500">
+        <Image
+          src="https://kuqkcswutjdvdcuvzxqn.supabase.co/storage/v1/object/sign/sampahin/assets/Register.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YjBhZDgyMi1iYjIwLTQ1ZmUtYTM5Ny0zMzI3MDc4MDgyZWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJzYW1wYWhpbi9hc3NldHMvUmVnaXN0ZXIucG5nIiwiaWF0IjoxNzUxOTUwNDYwLCJleHAiOjMxNzA4MDQxNDQ2MH0.XSm4Hs-2j9gOKQhif-7i9OEMK7sMOAY0Vx5IF3Zc9x4"
+          alt="Ilustrasi komunitas di pantai yang sedang membersihkan sampah dengan tempat sampah hijau untuk daur ulang dan tempat sampah merah, menunjukkan aktivitas pembersihan lingkungan berkelanjutan di tepi pantai dengan pohon kelapa"
+          className="w-full h-auto rounded-lg shadow-lg"
+          width={600}
+            height={400}
+        />
       </div>
 
       {/* Right side - Sign Up Form */}
