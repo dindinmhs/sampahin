@@ -1,12 +1,24 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { useState, useRef, Dispatch, SetStateAction } from "react"
+import { useState, useRef, Dispatch, SetStateAction, FormEvent } from "react"
 import { Camera, Upload, X } from "lucide-react"
 import Image from "next/image"
 import { DragCloseDrawer } from "../common/modal"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
+import dynamic from "next/dynamic";
+import { createClient } from "@/lib/supabase/client"
+
+const CoordinatePicker = dynamic(() => import('../common/coordinat-picker'), {
+  ssr: false,
+});
+
+interface AnalysisResultProps {
+  skor_kebersihan: number | null
+  grade: string | null
+  deskripsi: string | null
+}
 
 export const GradingForm = () => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
@@ -16,11 +28,7 @@ export const GradingForm = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [open, setOpen] = useState(false);
 
-  const [analysisResult, setAnalysisResult] = useState<{
-    skor_kebersihan: number | null
-    grade: string | null
-    deskripsi: string | null
-  } | null>(null)
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResultProps | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -296,6 +304,7 @@ export const GradingForm = () => {
         <Button
           onClick={()=>setOpen(true)}
           className="bg-cyan-600 hover:bg-cyan-700 text-white px-8 py-2 text-lg w-full"
+          disabled={analysisResult?.grade != 'D'}
         >
           Bagikan
         </Button>
@@ -310,7 +319,7 @@ export const GradingForm = () => {
 
       {/* Hidden canvas for photo capture */}
       <canvas ref={canvasRef} className="hidden" />
-      <GradeShareForm open={open} setOpen={setOpen}/>
+      {selectedImage && <GradeShareForm selectedImage={selectedImage} analysis_result={analysisResult} open={open} setOpen={setOpen}/>}
     </div>
   )
 }
@@ -318,13 +327,74 @@ export const GradingForm = () => {
 interface Props {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  analysis_result : AnalysisResultProps | null
+  selectedImage : File;
 }
 
-const GradeShareForm = ({open, setOpen}:Props) => {
+const GradeShareForm = ({open, setOpen, analysis_result, selectedImage}:Props) => {
+  const [form, setForm] = useState<{
+    nama: string;
+    alamat: string;
+    coord: [number, number];
+  }>({
+    nama: '',
+    alamat: '',
+    coord: [-6.89794, 107.63576],
+  })
+  const supabase = createClient()
+  const submit = async (e:FormEvent) => {
+    e.preventDefault()
+    
+    const authRes = await supabase.auth.getUser();
+
+    const filePath = `locations/${form.nama}_${Date.now()}`
+
+    const storageRes = await supabase.storage
+      .from('sampahin') 
+      .upload(filePath, selectedImage, {
+        cacheControl: '3600',
+        upsert: false, 
+      })
+      if (storageRes.error) throw storageRes.error;
+    const { data: {publicUrl} } = supabase
+      .storage
+      .from('sampahin')
+      .getPublicUrl(filePath)
+
+    const locationRes = await supabase
+      .from('locations')
+      .insert([
+        { 
+          name : form.nama,
+          lan : form.coord[0],  
+          lat : form.coord[1],
+          type : 'cleanliness',
+          address : form.alamat,
+          img_url : publicUrl 
+        },
+      ])
+      .select('id')
+      if (!locationRes.data) throw locationRes.error;
+    const cleanlinessRes = await supabase
+      .from('cleanliness_reports')
+      .insert([
+        { 
+          reporter : authRes.data.user?.id,
+          location : locationRes.data[0].id,
+          score : analysis_result?.skor_kebersihan,
+          grade : analysis_result?.grade,  
+          ai_description : analysis_result?.deskripsi 
+        },
+      ])
+      .select()
+    if (cleanlinessRes.error) throw cleanlinessRes.error;
+    if(cleanlinessRes.data) setOpen(false)
+  }
+  
   return (
     <DragCloseDrawer open={open} setOpen={setOpen}>
         <div className="max-w-5xl mx-auto">
-            <div className="flex flex-col gap-4">
+            <form className="flex flex-col gap-4" onSubmit={submit}>
                 <div>
                     <Label htmlFor="nama" className="text-sm font-medium text-gray-700">
                     Nama
@@ -334,8 +404,8 @@ const GradeShareForm = ({open, setOpen}:Props) => {
                     type="text"
                     placeholder="Masukkan Nama"
                     required
-                    //   value={email}
-                    //   onChange={(e) => setEmail(e.target.value)}
+                    value={form.nama}
+                    onChange={(e) => setForm({...form, nama : e.target.value})}
                     className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     />
                 </div>
@@ -348,12 +418,29 @@ const GradeShareForm = ({open, setOpen}:Props) => {
                     type="text"
                     placeholder="Masukkan Alamat"
                     required
-                    //   value={email}
-                    //   onChange={(e) => setEmail(e.target.value)}
+                    value={form.alamat}
+                    onChange={(e) => setForm({...form, alamat : e.target.value})}
                     className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     />
                 </div>
-            </div>
+                <CoordinatePicker
+                  value={form.coord}
+                  onChange={(newCoord) => setForm({ ...form, coord: newCoord })}
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <Button
+                    onClick={()=>setOpen(false)}
+                    type="button"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    type="submit"
+                  >
+                    Bagikan
+                  </Button>
+                </div>
+            </form>
         </div>
     </DragCloseDrawer>
   )
