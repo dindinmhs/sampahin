@@ -140,7 +140,7 @@ export default function Page() {
           <Image
             width={500}
             height={500}
-            src="/api/placeholder/600/400"
+            src="https://kuqkcswutjdvdcuvzxqn.supabase.co/storage/v1/object/public/sampahin/assets/Login.png"
             alt="Ilustrasi komunitas pengelolaan sampah berkelanjutan dengan orang-orang yang bekerja sama membersihkan lingkungan dan memilah sampah ke dalam tempat sampah daur ulang"
             className="w-full h-auto rounded-lg shadow-lg"
           />

@@ -470,9 +470,11 @@ const GradeShareForm = ({
     coord: [-6.89794, 107.63576],
   });
   const supabase = createClient();
+  const [loading, setLoading] = useState(false)
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-
+    setLoading(true)
     const authRes = await supabase.auth.getUser();
 
     const fileExt = mimeToExt[selectedImage.type as keyof typeof mimeToExt] || '';
@@ -514,6 +516,7 @@ const GradeShareForm = ({
         },
       ])
       .select();
+    setLoading(false)
     if (cleanlinessRes.error) throw cleanlinessRes.error;
     if (cleanlinessRes.data) setOpen(false);
   };
@@ -558,10 +561,12 @@ const GradeShareForm = ({
             onChange={(newCoord) => setForm({ ...form, coord: newCoord })}
           />
           <div className="flex items-center gap-2 justify-end">
-            <Button onClick={() => setOpen(false)} type="button">
+            {!loading && <Button onClick={() => setOpen(false)} type="button">
               Batal
+            </Button>}
+            <Button type="submit" disabled={loading}>
+              {loading?'Membagikan...':'Bagikan'}
             </Button>
-            <Button type="submit">Bagikan</Button>
           </div>
         </form>
       </div>
