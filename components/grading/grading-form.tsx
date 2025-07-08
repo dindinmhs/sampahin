@@ -9,6 +9,7 @@ import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client"
+import { mimeToExt } from "@/lib/utils"
 
 const CoordinatePicker = dynamic(() => import('../common/coordinat-picker'), {
   ssr: false,
@@ -347,16 +348,15 @@ const GradeShareForm = ({open, setOpen, analysis_result, selectedImage}:Props) =
     
     const authRes = await supabase.auth.getUser();
 
-    const filePath = `locations/${form.nama}_${Date.now()}`
+    const fileExt = mimeToExt[selectedImage.type as keyof typeof mimeToExt] || '';
+    const safeName = form.nama.replace(/\s+/g, '-').toLowerCase();
+    const filePath = `locations/${safeName}_${Date.now()}${fileExt}`;
 
     const storageRes = await supabase.storage
       .from('sampahin') 
-      .upload(filePath, selectedImage, {
-        cacheControl: '3600',
-        upsert: false, 
-      })
+      .upload(filePath, selectedImage)
       if (storageRes.error) throw storageRes.error;
-    const { data: {publicUrl} } = supabase
+    const { data: {publicUrl} } = await supabase
       .storage
       .from('sampahin')
       .getPublicUrl(filePath)
