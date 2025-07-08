@@ -54,6 +54,7 @@ export const ScanForm = () => {
           };
         }
       } catch (initialError) {
+        console.error("Front camera access failed:", initialError);
         console.log("Front camera access failed, trying generic camera access");
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -73,6 +74,7 @@ export const ScanForm = () => {
             };
           }
         } catch (fallbackError) {
+          console.error("Generic camera access failed:", fallbackError);
           console.log("Generic camera access failed, trying back camera");
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {

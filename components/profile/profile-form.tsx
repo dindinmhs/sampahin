@@ -54,8 +54,12 @@ export default function ProfileForm({
 
       // Refresh halaman untuk memastikan semua data ter-update
       router.refresh();
-    } catch (error: any) {
-      setError(error.message || "Terjadi kesalahan saat memperbarui profil");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("Terjadi kesalahan saat memperbarui profil");
+      }
     } finally {
       setUpdating(false);
     }
