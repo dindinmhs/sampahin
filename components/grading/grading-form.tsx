@@ -406,7 +406,7 @@ export const GradingForm = () => {
                     <div className="flex flex-col justify-center items-center">
                       <span className="font-medium">Skor Kebersihan:</span>
                       <span
-                        className={`font-bold px-2 py-1 rounded text-white text-4xl ${
+                        className={`font-bold px-2 py-1 rounded text-4xl ${
                           analysisResult.grade === "A"
                             ? "text-green-500"
                             : analysisResult.grade === "B"
@@ -426,7 +426,7 @@ export const GradingForm = () => {
                     <div className="flex flex-col justify-center items-center">
                       <span className="font-medium">Grade:</span>
                       <span
-                        className={`font-bold px-2 py-1 rounded text-4xl text-white ${
+                        className={`font-bold px-2 py-1 rounded text-4xl ${
                           analysisResult.grade === "A"
                             ? "text-green-500"
                             : analysisResult.grade === "B"
