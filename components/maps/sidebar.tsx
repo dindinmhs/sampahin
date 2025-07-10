@@ -1,6 +1,8 @@
 "use client";
 
 import { X } from "lucide-react";
+import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
+import Image from "next/image";
 
 interface Location {
   id: number;
@@ -9,7 +11,7 @@ interface Location {
   type: string;
   name: string;
   address: string;
-  created_at: any;
+  created_at: Timestamp;
   img_url: string;
 }
 
@@ -19,7 +21,7 @@ interface CleanlinessReport {
   score: number;
   grade: string;
   ai_description: string;
-  created_at: any;
+  created_at: Timestamp;
   location: number;
 }
 
@@ -50,7 +52,9 @@ export const MapSidebar = ({ isOpen, onClose, location, latestReport }: MapSideb
             <div className="p-4 overflow-y-auto h-full pb-20">
                 {/* Image */}
                 <div className="mb-6">
-                    <img 
+                    <Image 
+                        width={400}
+                        height={200}
                         src={location.img_url} 
                         alt={location.name} 
                         className="w-full h-48 object-cover rounded-xl shadow-md" 
