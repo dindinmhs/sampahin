@@ -135,14 +135,18 @@ export default function Page() {
       </div>
 
       {/* Right side - Illustration */}
-      <div className="flex-1 bg-gradient-to-br from-green-400 to-blue-500">
-         <Image
-            src="https://kuqkcswutjdvdcuvzxqn.supabase.co/storage/v1/object/sign/sampahin/assets/Login.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YjBhZDgyMi1iYjIwLTQ1ZmUtYTM5Ny0zMzI3MDc4MDgyZWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJzYW1wYWhpbi9hc3NldHMvTG9naW4ucG5nIiwiaWF0IjoxNzUxOTUwNDM3LCJleHAiOjMzMjU2NDE0NDM3fQ.KvSUSpkVpbXsfTb-P7nB4prnKK7JjJb3eWB-fqCOBso"
+      <div className="flex-1 bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center p-8">
+        <div className="max-w-lg">
+          <Image
+            width={500}
+            height={500}
+            src="https://kuqkcswutjdvdcuvzxqn.supabase.co/storage/v1/object/public/sampahin/assets/Login.png"
             alt="Ilustrasi komunitas pengelolaan sampah berkelanjutan dengan orang-orang yang bekerja sama membersihkan lingkungan dan memilah sampah ke dalam tempat sampah daur ulang"
             className="w-full h-auto rounded-lg shadow-lg"
             width={600}
             height={400}
           />
+        </div>
       </div>
     </div>
   );
