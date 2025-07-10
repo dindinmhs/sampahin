@@ -1,17 +1,15 @@
-import { Navbar } from "@/components/common/navbar"
-import { GradingForm } from "@/components/grading/grading-form"
+import { Navbar } from "@/components/common/navbar";
+import { GradingForm } from "@/components/grading/grading-form";
 
 const Page = () => {
-  
-
   return (
     <>
-      <Navbar title="Grading"/>
-      <main className="min-h-screen bg-gray-50 py-20">
-        <GradingForm/>
+      <Navbar title="Grading" />
+      <main className="min-h-screen bg-gray-50 py-5">
+        <GradingForm />
       </main>
     </>
-  )
-}
+  );
+};
 
-export default Page
+export default Page;

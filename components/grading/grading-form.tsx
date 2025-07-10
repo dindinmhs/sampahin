@@ -1,15 +1,15 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState, useRef, Dispatch, SetStateAction, FormEvent } from "react";
+import { useState, useRef, Dispatch, SetStateAction } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { DragCloseDrawer } from "../common/modal";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import dynamic from "next/dynamic";
-import { createClient } from "@/lib/supabase/client"
-import { mimeToExt } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client";
+import { mimeToExt } from "@/lib/utils";
 
 const CoordinatePicker = dynamic(() => import("../common/coordinat-picker"), {
   ssr: false,
@@ -75,7 +75,6 @@ export const GradingForm = () => {
         }
       } catch (initialError) {
         console.error("Front camera access failed:", initialError);
-        console.log("Front camera access failed, trying generic camera access");
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: true,
@@ -95,7 +94,6 @@ export const GradingForm = () => {
           }
         } catch (fallbackError) {
           console.error("Generic camera access failed:", fallbackError);
-          console.log("Generic camera access failed, trying back camera");
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: "environment",
@@ -284,165 +282,213 @@ export const GradingForm = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-        Upload Tempat Kotor
-      </h1>
+    <div className="bg-gray-50 p-4 min-h-screen">
+      <div className="max-w-2xl mx-auto py-10">
+        {/* Main Content Card */}
+        <div className="bg-white rounded-lg shadow-sm px-6 py-2">
+          {/* Foto Label */}
+          <div className="mb-4">
+            <h2 className="text-sm font-medium text-gray-700 mb-3">Foto</h2>
 
-      {/* Upload Options */}
-      <div className="space-y-4 mb-6">
-        <div className="flex gap-4 justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2"
-            disabled={isCapturing}
-          >
-            <Upload className="w-4 h-4" />
-            Pilih File
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={startCamera}
-            className="flex items-center gap-2"
-            disabled={isCapturing}
-          >
-            <Camera className="w-4 h-4" />
-            Buka Kamera
-          </Button>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-      </div>
-
-      {/* Camera Error */}
-      {cameraError && (
-        <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-          {cameraError}
-        </div>
-      )}
-
-      {/* Camera View */}
-      {isCapturing && (
-        <div className="mb-6 text-center">
-          <div className="relative inline-block w-full">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full aspect-video rounded-lg border-2 border-gray-300 object-cover"
-            />
-            <div className="mt-4 flex gap-4 justify-center">
+            {/* Upload Options */}
+            <div className="flex gap-2 mb-4">
               <Button
                 type="button"
-                onClick={capturePhoto}
-                className="bg-blue-600 hover:bg-blue-700"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
+                disabled={isCapturing}
               >
-                Ambil Foto
+                <Upload className="w-3 h-3" />
+                Pilih Foto
               </Button>
+
               <Button
                 type="button"
-                onClick={toggleCamera}
-                className="bg-gray-600 hover:bg-gray-700 text-white"
+                variant="outline"
+                onClick={startCamera}
+                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
+                disabled={isCapturing}
               >
-                Ganti Kamera
-              </Button>
-              <Button type="button" variant="outline" onClick={stopCamera}>
-                Batal
+                <Camera className="w-3 h-3" />
+                Buka Kamera
               </Button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Image Preview */}
-      {previewUrl && !isCapturing && (
-        <div className="mb-6 text-center">
-          <div className="relative inline-block">
-            <Image
-              src={previewUrl}
-              width={500}
-              height={500}
-              alt="Preview"
-              className="max-w-full h-auto max-h-96 rounded-lg border-2 border-gray-300 shadow-md object-contain"
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={removeImage}
-              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white border-red-500"
-            >
-              <X className="w-4 h-4" />
-            </Button>
           </div>
-          <p className="text-sm text-gray-600 mt-2">
-            {selectedImage?.name || "Foto dari kamera"}
-          </p>
-        </div>
-      )}
 
-      {/* Analysis Button */}
-      <div className="text-center">
-        {/* Analysis Result */}
-        {analysisResult && (
-          <div className="mt-4 p-4 bg-gray-100 rounded-lg text-left text-sm space-y-2">
-            <h3 className="font-semibold text-gray-800 mb-2">
-              Hasil Analisis:
-            </h3>
-            <p>
-              <span className="font-medium">Skor Kebersihan:</span>{" "}
-              {analysisResult.skor_kebersihan ?? "Tidak tersedia"}
-            </p>
-            <p>
-              <span className="font-medium">Grade:</span>{" "}
-              {analysisResult.grade ?? "Tidak tersedia"}
-            </p>
-            <p>
-              <span className="font-medium">Deskripsi:</span>{" "}
-              {analysisResult.deskripsi ?? "Tidak tersedia"}
-            </p>
-          </div>
-        )}
-        {analysisResult ? (
-          <Button
-            onClick={() => setOpen(true)}
-            className="bg-cyan-600 hover:bg-cyan-700 text-white px-8 py-2 text-lg w-full"
-            disabled={analysisResult?.grade != "D"}
-          >
-            Bagikan
-          </Button>
-        ) : (
-          <Button
-            onClick={handleAnalysis}
-            disabled={!selectedImage || isAnalyzing}
-            className="bg-cyan-600 hover:bg-cyan-700 text-white px-8 py-2 text-lg w-full"
-          >
-            {isAnalyzing ? "Menganalisis..." : "Analisis"}
-          </Button>
+          {/* Camera Error */}
+          {cameraError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              {cameraError}
+            </div>
+          )}
+
+          {/* Camera View */}
+          {isCapturing && (
+            <div className="mb-4">
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full aspect-video rounded-2xl border border-gray-200"
+                />
+                <div className="mt-3 flex gap-2 justify-center">
+                  <Button
+                    type="button"
+                    onClick={toggleCamera}
+                    className="bg-gray-500 hover:bg-gray-600 text-white text-xs px-4 py-2 h-8 rounded-full"
+                  >
+                    Ganti Kamera
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={capturePhoto}
+                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-4 py-2 h-8 rounded-full"
+                  >
+                    Ambil Foto
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={stopCamera}
+                    className="text-xs px-4 py-2 h-8 rounded-full"
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Image Preview */}
+          {previewUrl && !isCapturing && (
+            <div className="mb-4">
+              <div className="relative">
+                <Image
+                  src={previewUrl}
+                  width={400}
+                  height={300}
+                  alt="Preview"
+                  className="w-full h-48 rounded-lg border border-gray-200 object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500 rounded-full"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Analysis Result */}
+          {analysisResult && (
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-800 mb-2">
+                Hasil Analisis AI
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
+                <div className="space-y-2">
+                  <div className="flex justify-start gap-8">
+                    <div className="flex flex-col justify-center items-center">
+                      <span className="font-medium">Skor Kebersihan:</span>
+                      <span
+                        className={`font-bold px-2 py-1 rounded text-white text-4xl ${
+                          analysisResult.grade === "A"
+                            ? "text-green-500"
+                            : analysisResult.grade === "B"
+                            ? "text-blue-500"
+                            : analysisResult.grade === "C"
+                            ? "text-yellow-500"
+                            : analysisResult.grade === "D"
+                            ? "text-orange-600"
+                            : analysisResult.grade === "E"
+                            ? "text-red-500"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {analysisResult.skor_kebersihan ?? "Tidak tersedia"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col justify-center items-center">
+                      <span className="font-medium">Grade:</span>
+                      <span
+                        className={`font-bold px-2 py-1 rounded text-4xl text-white ${
+                          analysisResult.grade === "A"
+                            ? "text-green-500"
+                            : analysisResult.grade === "B"
+                            ? "text-blue-500"
+                            : analysisResult.grade === "C"
+                            ? "text-yellow-500"
+                            : analysisResult.grade === "D"
+                            ? "text-orange-600"
+                            : analysisResult.grade === "E"
+                            ? "text-red-500"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {analysisResult.grade ?? "Tidak tersedia"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-gray-200">
+                    <p className="font-medium mb-1">Deskripsi:</p>
+                    <p className="text-gray-600 leading-relaxed">
+                      {analysisResult.deskripsi ?? "Tidak tersedia"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Analysis/Share Button */}
+        <div className="mt-4">
+          {analysisResult ? (
+            <Button
+              onClick={() => setOpen(true)}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
+              disabled={analysisResult?.grade !== "D"}
+            >
+              Bagikan
+            </Button>
+          ) : (
+            <Button
+              onClick={handleAnalysis}
+              disabled={!selectedImage || isAnalyzing}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
+            >
+              {isAnalyzing ? "Menganalisis..." : "Analisis"}
+            </Button>
+          )}
+        </div>
+
+        {/* Hidden canvas for photo capture */}
+        <canvas ref={canvasRef} className="hidden" />
+
+        {selectedImage && (
+          <GradeShareForm
+            selectedImage={selectedImage}
+            analysis_result={analysisResult}
+            open={open}
+            setOpen={setOpen}
+          />
         )}
       </div>
-
-      {/* Hidden canvas for photo capture */}
-      <canvas ref={canvasRef} className="hidden" />
-      {selectedImage && (
-        <GradeShareForm
-          selectedImage={selectedImage}
-          analysis_result={analysisResult}
-          open={open}
-          setOpen={setOpen}
-        />
-      )}
     </div>
   );
 };
@@ -470,61 +516,69 @@ const GradeShareForm = ({
     coord: [-6.89794, 107.63576],
   });
   const supabase = createClient();
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true)
-    const authRes = await supabase.auth.getUser();
+  const submit = async () => {
+    setLoading(true);
 
-    const fileExt = mimeToExt[selectedImage.type as keyof typeof mimeToExt] || '';
-    const safeName = form.nama.replace(/\s+/g, '-').toLowerCase();
-    const filePath = `locations/${safeName}_${Date.now()}${fileExt}`;
+    try {
+      const authRes = await supabase.auth.getUser();
 
-    const storageRes = await supabase.storage
-      .from('sampahin') 
-      .upload(filePath, selectedImage)
+      const fileExt =
+        mimeToExt[selectedImage.type as keyof typeof mimeToExt] || "";
+      const safeName = form.nama.replace(/\s+/g, "-").toLowerCase();
+      const filePath = `locations/${safeName}_${Date.now()}${fileExt}`;
+
+      const storageRes = await supabase.storage
+        .from("sampahin")
+        .upload(filePath, selectedImage);
       if (storageRes.error) throw storageRes.error;
-    const { data: {publicUrl} } = await supabase
-      .storage
-      .from('sampahin')
-      .getPublicUrl(filePath)
 
-    const locationRes = await supabase
-      .from("locations")
-      .insert([
-        {
-          name: form.nama,
-          lan: form.coord[0],
-          lat: form.coord[1],
-          type: "cleanliness",
-          address: form.alamat,
-          img_url: publicUrl,
-        },
-      ])
-      .select("id");
-    if (!locationRes.data) throw locationRes.error;
-    const cleanlinessRes = await supabase
-      .from("cleanliness_reports")
-      .insert([
-        {
-          reporter: authRes.data.user?.id,
-          location: locationRes.data[0].id,
-          score: analysis_result?.skor_kebersihan,
-          grade: analysis_result?.grade,
-          ai_description: analysis_result?.deskripsi,
-        },
-      ])
-      .select();
-    setLoading(false)
-    if (cleanlinessRes.error) throw cleanlinessRes.error;
-    if (cleanlinessRes.data) setOpen(false);
+      const {
+        data: { publicUrl },
+      } = await supabase.storage.from("sampahin").getPublicUrl(filePath);
+
+      const locationRes = await supabase
+        .from("locations")
+        .insert([
+          {
+            name: form.nama,
+            lan: form.coord[0],
+            lat: form.coord[1],
+            type: "cleanliness",
+            address: form.alamat,
+            img_url: publicUrl,
+          },
+        ])
+        .select("id");
+      if (!locationRes.data) throw locationRes.error;
+
+      const cleanlinessRes = await supabase
+        .from("cleanliness_reports")
+        .insert([
+          {
+            reporter: authRes.data.user?.id,
+            location: locationRes.data[0].id,
+            score: analysis_result?.skor_kebersihan,
+            grade: analysis_result?.grade,
+            ai_description: analysis_result?.deskripsi,
+          },
+        ])
+        .select();
+
+      if (cleanlinessRes.error) throw cleanlinessRes.error;
+      if (cleanlinessRes.data) setOpen(false);
+    } catch (error) {
+      console.error("Error submitting form:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <DragCloseDrawer open={open} setOpen={setOpen}>
       <div className="max-w-5xl mx-auto">
-        <form className="flex flex-col gap-4" onSubmit={submit}>
+        <div className="flex flex-col gap-4">
           <div>
             <Label htmlFor="nama" className="text-sm font-medium text-gray-700">
               Nama
@@ -561,14 +615,20 @@ const GradeShareForm = ({
             onChange={(newCoord) => setForm({ ...form, coord: newCoord })}
           />
           <div className="flex items-center gap-2 justify-end">
-            {!loading && <Button onClick={() => setOpen(false)} type="button">
-              Batal
-            </Button>}
-            <Button type="submit" disabled={loading}>
-              {loading?'Membagikan...':'Bagikan'}
+            {!loading && (
+              <Button
+                onClick={() => setOpen(false)}
+                type="button"
+                variant="outline"
+              >
+                Batal
+              </Button>
+            )}
+            <Button type="submit" disabled={loading} onClick={submit}>
+              {loading ? "Membagikan..." : "Bagikan"}
             </Button>
           </div>
-        </form>
+        </div>
       </div>
     </DragCloseDrawer>
   );

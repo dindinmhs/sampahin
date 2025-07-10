@@ -1,16 +1,15 @@
-import { Navbar } from "@/components/common/navbar"
-import { ScanForm } from "@/components/scan-sampah/scan-form"
+import { Navbar } from "@/components/common/navbar";
+import { ScanForm } from "@/components/scan-sampah/scan-form";
 
 const Page = () => {
-
   return (
     <>
-      <Navbar title="Scan Sampah"/>
-      <main className="min-h-screen bg-gray-50 py-20">
-        <ScanForm/>
+      <Navbar title="Scan Sampah" />
+      <main className="min-h-screen bg-gray-50 py-5">
+        <ScanForm />
       </main>
     </>
-  )
-}
+  );
+};
 
-export default Page
+export default Page;

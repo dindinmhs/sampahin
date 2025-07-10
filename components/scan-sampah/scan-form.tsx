@@ -255,137 +255,145 @@ export const ScanForm = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-        Scan Sampah
-      </h1>
+    <div className=" bg-gray-50 p-4">
+      <div className="max-w-2xl mx-auto py-10">
+        {/* Main Content Card */}
+        <div className="bg-white rounded-lg shadow-sm px-6 py-2">
+          {/* Foto Label */}
+          <div className="mb-4">
+            <h2 className="text-sm font-medium text-gray-700 mb-3">Foto</h2>
 
-      {/* Upload Options */}
-      <div className="space-y-4 mb-6">
-        <div className="flex gap-4 justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2"
-            disabled={isCapturing}
-          >
-            <Upload className="w-4 h-4" />
-            Pilih File
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={startCamera}
-            className="flex items-center gap-2"
-            disabled={isCapturing}
-          >
-            <Camera className="w-4 h-4" />
-            Buka Kamera
-          </Button>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-      </div>
-
-      {/* Camera Error */}
-      {cameraError && (
-        <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-          {cameraError}
-        </div>
-      )}
-
-      {/* Camera View */}
-      {isCapturing && (
-        <div className="mb-6 text-center">
-          <div className="relative inline-block w-full">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full aspect-video rounded-lg border-2 border-gray-300"
-            />
-            <div className="mt-4 flex gap-4 justify-center">
+            {/* Upload Options */}
+            <div className="flex gap-2 mb-4">
               <Button
                 type="button"
-                onClick={capturePhoto}
-                className="bg-blue-600 hover:bg-blue-700"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full  border-blue-200 text-blue-600 hover:bg-blue-50"
+                disabled={isCapturing}
               >
-                Ambil Foto
+                <Upload className="w-3 h-3" />
+                Pilih Foto
               </Button>
+
               <Button
                 type="button"
-                onClick={toggleCamera}
-                className="bg-gray-600 hover:bg-gray-700 text-white"
+                variant="outline"
+                onClick={startCamera}
+                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
+                disabled={isCapturing}
               >
-                Ganti Kamera
-              </Button>
-              <Button type="button" variant="outline" onClick={stopCamera}>
-                Batal
+                <Camera className="w-3 h-3" />
+                Buka Kamera
               </Button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Image Preview */}
-      {previewUrl && !isCapturing && (
-        <div className="mb-6 text-center">
-          <div className="relative inline-block">
-            <Image
-              src={previewUrl}
-              width={500}
-              height={500}
-              alt="Preview"
-              className="max-w-full h-auto max-h-96 rounded-lg border-2 border-gray-300 shadow-md object-contain"
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={removeImage}
-              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white border-red-500"
-            >
-              <X className="w-4 h-4" />
-            </Button>
           </div>
-          <p className="text-sm text-gray-600 mt-2">
-            {selectedImage?.name || "Foto dari kamera"}
-          </p>
+
+          {/* Camera Error */}
+          {cameraError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              {cameraError}
+            </div>
+          )}
+
+          {/* Camera View */}
+          {isCapturing && (
+            <div className="mb-4">
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full aspect-video rounded-2xl border border-gray-200"
+                />
+                <div className="mt-3 flex gap-2 justify-center">
+                  <Button
+                    type="button"
+                    onClick={toggleCamera}
+                    className="bg-gray-500 hover:bg-gray-600 text-white text-xs px-4 py-2 h-8"
+                  >
+                    Ganti Kamera
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={capturePhoto}
+                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-4 py-2 h-8"
+                  >
+                    Ambil Foto
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={stopCamera}
+                    className="text-xs px-4 py-2 h-8"
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Image Preview */}
+          {previewUrl && !isCapturing && (
+            <div className="mb-4">
+              <div className="relative">
+                <Image
+                  src={previewUrl}
+                  width={400}
+                  height={300}
+                  alt="Preview"
+                  className="w-full h-48 rounded-lg border border-gray-200 object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500 rounded-full"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Analysis Result */}
+          {analysisResult && (
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-800 mb-2">
+                Hasil Analisis AI
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-line">
+                {analysisResult}
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Analysis Button */}
-      <div className="text-center">
-        <Button
-          onClick={handleAnalysis}
-          disabled={!selectedImage || isAnalyzing}
-          className="bg-cyan-600 hover:bg-cyan-700 text-white px-8 py-2 text-lg w-full"
-        >
-          {isAnalyzing ? "Menganalisis..." : "Analisis"}
-        </Button>
+        {/* Analysis Button */}
+        <div className="mt-4">
+          <Button
+            onClick={handleAnalysis}
+            disabled={!selectedImage || isAnalyzing}
+            className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
+          >
+            {isAnalyzing ? "Menganalisis..." : "Analisis"}
+          </Button>
+        </div>
 
-        {/* Analysis Result */}
-        {analysisResult && (
-          <div className="mt-4 p-4 bg-gray-100 rounded-lg text-left whitespace-pre-line text-sm">
-            <h3 className="font-semibold text-gray-800 mb-2">
-              Hasil Analisis:
-            </h3>
-            <div className="text-gray-700">{analysisResult}</div>
-          </div>
-        )}
+        {/* Hidden canvas for photo capture */}
+        <canvas ref={canvasRef} className="hidden" />
       </div>
-
-      {/* Hidden canvas for photo capture */}
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 };
