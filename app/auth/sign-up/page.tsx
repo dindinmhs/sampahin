@@ -7,7 +7,11 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+<<<<<<< HEAD
 import Image from 'next/image'
+=======
+import Image from "next/image";
+>>>>>>> 99290a3acdca807dcec0c9bbd54974c954127591
 
 export default function Page() {
   const [nama, setNama] = useState("");
@@ -57,6 +61,7 @@ export default function Page() {
   return (
     <div className="min-h-screen flex">
       {/* Left side - Illustration */}
+<<<<<<< HEAD
       <div className="flex-1 bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500">
         <Image
           src="https://kuqkcswutjdvdcuvzxqn.supabase.co/storage/v1/object/sign/sampahin/assets/Register.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YjBhZDgyMi1iYjIwLTQ1ZmUtYTM5Ny0zMzI3MDc4MDgyZWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJzYW1wYWhpbi9hc3NldHMvUmVnaXN0ZXIucG5nIiwiaWF0IjoxNzUxOTUwNDYwLCJleHAiOjMxNzA4MDQxNDQ2MH0.XSm4Hs-2j9gOKQhif-7i9OEMK7sMOAY0Vx5IF3Zc9x4"
@@ -65,6 +70,18 @@ export default function Page() {
           width={600}
             height={400}
         />
+=======
+      <div className="flex-1 bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500 flex items-center justify-center p-8">
+        <div className="max-w-2xl">
+          <Image
+            src="/api/placeholder/800/600"
+            width={500}
+            height={500}
+            alt="Ilustrasi komunitas di pantai yang sedang membersihkan sampah dengan tempat sampah hijau untuk daur ulang dan tempat sampah merah, menunjukkan aktivitas pembersihan lingkungan berkelanjutan di tepi pantai dengan pohon kelapa"
+            className="w-full h-auto rounded-lg shadow-lg"
+          />
+        </div>
+>>>>>>> 99290a3acdca807dcec0c9bbd54974c954127591
       </div>
 
       {/* Right side - Sign Up Form */}
