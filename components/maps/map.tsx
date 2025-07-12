@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { MapContainer, TileLayer, Marker } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
 import { MapSidebar } from "./sidebar";
+import RoutingMachine from "./routing-machine";
 
 interface Location {
   id: number;
-  lan: number; 
-  lat: number; 
+  lan: number;
+  lat: number;
   type: string;
   name: string;
   address: string;
@@ -33,16 +34,43 @@ interface CleanlinessReport {
   };
 }
 
+// Komponen untuk mendapatkan lokasi pengguna
+const LocationFinder = ({
+  setUserLocation,
+}: {
+  setUserLocation: (position: [number, number]) => void;
+}) => {
+  const map = useMapEvents({
+    locationfound(e) {
+      setUserLocation([e.latlng.lat, e.latlng.lng]);
+    },
+  });
+
+  useEffect(() => {
+    map.locate();
+  }, [map]);
+
+  return null;
+};
+
 const Maps = () => {
   const [locations, setLocations] = useState<Location[]>([]);
-  const [cleanlinessReports, setCleanlinessReports] = useState<CleanlinessReport[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [cleanlinessReports, setCleanlinessReports] = useState<
+    CleanlinessReport[]
+  >([]);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(
+    null
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(
+    null
+  );
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
     const getLocations = async () => {
       const supabase = createClient();
-      
+
       // Ambil data locations
       const { data: locationsData, error: locationsError } = await supabase
         .from("locations")
@@ -72,23 +100,23 @@ const Maps = () => {
 
   const customIcon = L.icon({
     iconUrl: "/dirty.png",
-    iconSize: [32, 32], 
-    iconAnchor: [16, 16], 
-    popupAnchor: [0, -16], 
-    shadowUrl: undefined, 
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+    shadowUrl: undefined,
   });
-
-  console.log(locations);
-  console.log(cleanlinessReports);
 
   // Function untuk mendapatkan laporan kebersihan terbaru untuk lokasi tertentu
   const getLatestReport = (locationId: number) => {
-    const locationReports = cleanlinessReports.filter(report => report.location === locationId);
+    const locationReports = cleanlinessReports.filter(
+      (report) => report.location === locationId
+    );
     if (locationReports.length === 0) return null;
-    
+
     // Ambil laporan terbaru berdasarkan created_at
-    return locationReports.sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    return locationReports.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
   };
 
@@ -96,18 +124,48 @@ const Maps = () => {
   const handleMarkerClick = (location: Location) => {
     setSelectedLocation(location);
     setIsSidebarOpen(true);
+    // Reset navigasi saat memilih lokasi baru
+    setIsNavigating(false);
   };
 
   // Function untuk close sidebar
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false);
     setSelectedLocation(null);
+    setIsNavigating(false);
+  };
+
+  // Function untuk memulai navigasi
+  const handleNavigate = () => {
+    if (selectedLocation && userLocation) {
+      // Validasi koordinat
+      const isValidCoordinate = (coord: [number, number]) => {
+        return (
+          coord[0] >= -90 &&
+          coord[0] <= 90 &&
+          coord[1] >= -180 &&
+          coord[1] <= 180
+        );
+      };
+
+      if (
+        !isValidCoordinate(userLocation) ||
+        !isValidCoordinate([selectedLocation.lan, selectedLocation.lat])
+      ) {
+        alert("Koordinat tidak valid. Silakan coba lagi.");
+        return;
+      }
+
+      setIsNavigating(true);
+    } else {
+      alert("Tidak dapat memulai navigasi. Pastikan lokasi Anda terdeteksi.");
+    }
   };
 
   return (
     <div className="relative">
       <MapContainer
-        center={[-6.2, 106.8]} 
+        center={[-6.2, 106.8]}
         zoom={12}
         className="h-screen w-screen z-10"
       >
@@ -115,6 +173,22 @@ const Maps = () => {
           attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {/* Komponen untuk mendapatkan lokasi pengguna */}
+        <LocationFinder setUserLocation={setUserLocation} />
+
+        {/* Tampilkan marker untuk lokasi pengguna jika tersedia */}
+        {userLocation && (
+          <Marker
+            position={userLocation}
+            icon={L.divIcon({
+              className: "user-location-marker",
+              html: `<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white;"></div>`,
+              iconSize: [22, 22],
+              iconAnchor: [11, 11],
+            })}
+          />
+        )}
 
         {locations.map((loc, index) => (
           <Marker
@@ -126,6 +200,15 @@ const Maps = () => {
             }}
           />
         ))}
+
+        {/* Tambahkan komponen routing jika sedang dalam mode navigasi */}
+        {isNavigating && userLocation && selectedLocation && (
+          <RoutingMachine
+            startPosition={userLocation}
+            endPosition={[selectedLocation.lan, selectedLocation.lat]}
+            isNavigating={isNavigating}
+          />
+        )}
       </MapContainer>
 
       {/* Sidebar */}
@@ -133,7 +216,10 @@ const Maps = () => {
         isOpen={isSidebarOpen}
         onClose={handleCloseSidebar}
         location={selectedLocation}
-        latestReport={selectedLocation ? getLatestReport(selectedLocation.id) : null}
+        latestReport={
+          selectedLocation ? getLatestReport(selectedLocation.id) : null
+        }
+        onNavigate={handleNavigate}
       />
     </div>
   );
