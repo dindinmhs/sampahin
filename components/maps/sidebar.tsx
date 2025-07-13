@@ -4,17 +4,8 @@ import { X } from "lucide-react";
 import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-
-interface Location {
-  id: number;
-  lan: number;
-  lat: number;
-  type: string;
-  name: string;
-  address: string;
-  created_at: Timestamp;
-  img_url: string;
-}
+import Avatar from "../common/avatar";
+import { LocationType } from "@/types/location";
 
 interface CleanlinessReport {
   id: number;
@@ -23,13 +14,15 @@ interface CleanlinessReport {
   grade: string;
   ai_description: string;
   created_at: Timestamp;
-  location: number;
+  location: string;
+  reporter_name : string;
+  email : string;
 }
 
 interface MapSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  location: Location | null;
+  location: LocationType | null;
   latestReport: CleanlinessReport | null;
   onNavigate: () => void; // Tambahkan prop untuk navigasi
 }
@@ -47,7 +40,7 @@ export const MapSidebar = ({
 
   // Fungsi untuk menangani klik tombol lapor
   const handleReportClick = () => {
-    router.push("/grading");
+    router.push(`/grading/${location.id}`);
   };
 
   // Fungsi untuk menangani klik tombol navigasi
@@ -58,7 +51,7 @@ export const MapSidebar = ({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out">
+    <div className="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-green-50">
         <h2 className="text-lg font-bold text-green-800">Detail Lokasi</h2>
@@ -181,9 +174,20 @@ export const MapSidebar = ({
                     <p className="text-xs text-blue-600 font-medium">
                       Dilaporkan oleh
                     </p>
-                    <p className="text-sm font-semibold text-blue-800">
-                      {latestReport.reporter}
-                    </p>
+                    <div className="flex gap-3 items-center mt-2">
+                      <Avatar
+                        displayName={latestReport.reporter_name}
+                        size="sm"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-blue-800">
+                          {latestReport.reporter_name}
+                        </p>
+                        <p className="text-xs font-semibold text-blue-800">
+                          {latestReport.email}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

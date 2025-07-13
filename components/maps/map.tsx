@@ -2,23 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
 import { MapSidebar } from "./sidebar";
 import RoutingMachine from "./routing-machine";
-
-interface Location {
-  id: number;
-  lan: number;
-  lat: number;
-  type: string;
-  name: string;
-  address: string;
-  created_at: Timestamp;
-  img_url: string;
-}
+import SearchLocation from "./search-location";
+import { LocationType } from "@/types/location";
 
 interface CleanlinessReport {
   id: number;
@@ -27,11 +18,9 @@ interface CleanlinessReport {
   grade: string;
   ai_description: string;
   created_at: Timestamp;
-  location: number; // foreign key ke locations
-  reporter_profile?: {
-    full_name: string;
-    email: string;
-  };
+  location: string; // foreign key ke locations
+  reporter_name : string;
+  email : string;
 }
 
 // Komponen untuk mendapatkan lokasi pengguna
@@ -54,11 +43,11 @@ const LocationFinder = ({
 };
 
 const Maps = () => {
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [locations, setLocations] = useState<LocationType[]>([]);
   const [cleanlinessReports, setCleanlinessReports] = useState<
     CleanlinessReport[]
   >([]);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(
+  const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(
     null
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -66,6 +55,7 @@ const Maps = () => {
     null
   );
   const [isNavigating, setIsNavigating] = useState(false);
+  const [mapRef, setMapRef] = useState<L.Map | null>(null);
 
   useEffect(() => {
     const getLocations = async () => {
@@ -83,8 +73,8 @@ const Maps = () => {
 
       // Ambil data cleanliness_reports
       const { data: reportsData, error: reportsError } = await supabase
-        .from("cleanliness_reports")
-        .select("id,reporter,score,grade,ai_description,created_at,location");
+        .from("cleanliness_reports_with_user")
+        .select("id,reporter,score,grade,ai_description,created_at,location,reporter_name,email");
 
       if (reportsError) {
         console.error("Error fetching cleanliness reports:", reportsError);
@@ -107,7 +97,7 @@ const Maps = () => {
   });
 
   // Function untuk mendapatkan laporan kebersihan terbaru untuk lokasi tertentu
-  const getLatestReport = (locationId: number) => {
+  const getLatestReport = (locationId: string) => {
     const locationReports = cleanlinessReports.filter(
       (report) => report.location === locationId
     );
@@ -121,7 +111,7 @@ const Maps = () => {
   };
 
   // Function untuk handle click marker
-  const handleMarkerClick = (location: Location) => {
+  const handleMarkerClick = (location: LocationType) => {
     setSelectedLocation(location);
     setIsSidebarOpen(true);
     // Reset navigasi saat memilih lokasi baru
@@ -162,13 +152,34 @@ const Maps = () => {
     }
   };
 
+  // Handler ketika lokasi dipilih dari search
+  const handleSearchSelect = (loc: LocationType) => {
+    setSelectedLocation(loc);
+    setIsSidebarOpen(true);
+    if (mapRef) {
+      mapRef.setView([loc.lan, loc.lat], 16, { animate: true });
+    }
+  };
+
   return (
-    <div className="relative">
+    <div className="relative w-full h-full">
+      {/* Search input di pojok kiri atas */}
+      <div className="absolute top-4 left-4 z-[1000]">
+        <SearchLocation onSelect={handleSearchSelect} />
+      </div>
+
       <MapContainer
+        zoomControl={false}
         center={[-6.2, 106.8]}
         zoom={12}
         className="h-screen w-screen z-10"
+        ref={(mapInstance) => {
+          if (mapInstance && mapInstance instanceof L.Map) {
+            setMapRef(mapInstance);
+          }
+        }}
       >
+        <ZoomControl position="bottomright"/>
         <TileLayer
           attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
