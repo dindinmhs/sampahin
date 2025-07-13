@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { MapContainer, TileLayer, Marker, useMapEvents, ZoomControl } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  useMapEvents,
+  ZoomControl,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
@@ -19,8 +25,8 @@ interface CleanlinessReport {
   ai_description: string;
   created_at: Timestamp;
   location: string; // foreign key ke locations
-  reporter_name : string;
-  email : string;
+  reporter_name: string;
+  email: string;
 }
 
 // Komponen untuk mendapatkan lokasi pengguna
@@ -92,7 +98,9 @@ const Maps = () => {
       // Ambil data cleanliness_reports
       const { data: reportsData, error: reportsError } = await supabase
         .from("cleanliness_reports_with_user")
-        .select("id,reporter,score,grade,ai_description,created_at,location,reporter_name,email");
+        .select(
+          "id,reporter,score,grade,ai_description,created_at,location,reporter_name,email"
+        );
 
       if (reportsError) {
         console.error("Error fetching cleanliness reports:", reportsError);
@@ -160,15 +168,14 @@ const Maps = () => {
   const handleMarkerClick = (location: LocationType) => {
     setSelectedLocation(location);
     setIsSidebarOpen(true);
-    // Reset navigasi saat memilih lokasi baru
-    setIsNavigating(false);
+    // Jangan reset navigasi saat memilih lokasi baru
   };
 
   // Function untuk close sidebar
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false);
     setSelectedLocation(null);
-    setIsNavigating(false);
+    // Jangan reset navigasi saat sidebar di-close
   };
 
   // Function untuk memulai navigasi
@@ -198,6 +205,12 @@ const Maps = () => {
     }
   };
 
+  // Function untuk membatalkan navigasi
+  const handleCancelNavigation = () => {
+    setIsNavigating(false);
+    setSelectedLocation(null);
+  };
+
   // Handler ketika lokasi dipilih dari search
   const handleSearchSelect = (loc: LocationType) => {
     setSelectedLocation(loc);
@@ -214,6 +227,25 @@ const Maps = () => {
         <SearchLocation onSelect={handleSearchSelect} />
       </div>
 
+      {/* Tombol Batalkan Navigasi di bawah tengah */}
+      {isNavigating && (
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[1000]">
+          <button
+            onClick={handleCancelNavigation}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors flex items-center justify-center space-x-2 shadow-lg"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span>Batalkan Navigasi</span>
+          </button>
+        </div>
+      )}
+
       <MapContainer
         zoomControl={false}
         center={[-6.2, 106.8]}
@@ -225,7 +257,7 @@ const Maps = () => {
           }
         }}
       >
-        <ZoomControl position="bottomright"/>
+        <ZoomControl position="bottomright" />
         <TileLayer
           attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -277,6 +309,7 @@ const Maps = () => {
           selectedLocation ? getLatestReport(selectedLocation.id) : null
         }
         onNavigate={handleNavigate}
+        isNavigating={isNavigating}
       />
     </div>
   );

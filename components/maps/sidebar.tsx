@@ -15,8 +15,8 @@ interface CleanlinessReport {
   ai_description: string;
   created_at: Timestamp;
   location: string;
-  reporter_name : string;
-  email : string;
+  reporter_name: string;
+  email: string;
 }
 
 interface MapSidebarProps {
@@ -24,7 +24,8 @@ interface MapSidebarProps {
   onClose: () => void;
   location: LocationType | null;
   latestReport: CleanlinessReport | null;
-  onNavigate: () => void; // Tambahkan prop untuk navigasi
+  onNavigate: () => void;
+  isNavigating: boolean; // Tambahkan prop untuk status navigasi
 }
 
 export const MapSidebar = ({
@@ -33,6 +34,7 @@ export const MapSidebar = ({
   location,
   latestReport,
   onNavigate,
+  isNavigating,
 }: MapSidebarProps) => {
   const router = useRouter();
 
@@ -237,7 +239,12 @@ export const MapSidebar = ({
           </button>
           <button
             onClick={handleNavigateClick}
-            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+            disabled={isNavigating}
+            className={`${
+              isNavigating
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2`}
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -251,7 +258,7 @@ export const MapSidebar = ({
                 clipRule="evenodd"
               />
             </svg>
-            <span>Navigasi</span>
+            <span>{isNavigating ? "Navigasi Aktif" : "Navigasi"}</span>
           </button>
         </div>
       </div>
