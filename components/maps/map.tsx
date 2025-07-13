@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
@@ -42,12 +42,25 @@ const LocationFinder = ({
 }) => {
   const map = useMapEvents({
     locationfound(e) {
-      setUserLocation([e.latlng.lat, e.latlng.lng]);
+      const userPos: [number, number] = [e.latlng.lat, e.latlng.lng];
+      setUserLocation(userPos);
+      // Fokus map ke posisi pengguna dengan zoom yang sesuai
+      map.setView(userPos, 15);
+    },
+    locationerror(e) {
+      console.error("Location error:", e.message);
+      // Jika gagal mendapatkan lokasi, tetap gunakan default Jakarta
+      // Anda bisa menambahkan notifikasi ke user di sini
     },
   });
 
   useEffect(() => {
-    map.locate();
+    map.locate({
+      setView: true,
+      maxZoom: 15,
+      timeout: 10000, // 10 detik timeout
+      enableHighAccuracy: true,
+    });
   }, [map]);
 
   return null;
@@ -66,6 +79,12 @@ const Maps = () => {
     null
   );
   const [isNavigating, setIsNavigating] = useState(false);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([-6.2, 106.8]); // Default Jakarta
+  const [mapZoom, setMapZoom] = useState(12);
+  const [isLocationLoaded, setIsLocationLoaded] = useState(false);
+
+  // Ref untuk menyimpan referensi map
+  const mapRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
     const getLocations = async () => {
@@ -97,6 +116,34 @@ const Maps = () => {
 
     getLocations();
   }, []);
+
+  // Effect untuk mendapatkan lokasi GPS saat komponen dimuat
+  useEffect(() => {
+    if (!isLocationLoaded && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userPos: [number, number] = [
+            position.coords.latitude,
+            position.coords.longitude,
+          ];
+          setUserLocation(userPos);
+          setMapCenter(userPos);
+          setMapZoom(15);
+          setIsLocationLoaded(true);
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          setIsLocationLoaded(true); // Tetap set true meskipun gagal
+          // Gunakan lokasi default Jakarta jika gagal
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        }
+      );
+    }
+  }, [isLocationLoaded]);
 
   const customIcon = L.icon({
     iconUrl: "/dirty.png",
@@ -165,9 +212,14 @@ const Maps = () => {
   return (
     <div className="relative">
       <MapContainer
-        center={[-6.2, 106.8]}
-        zoom={12}
+        center={mapCenter}
+        zoom={mapZoom}
         className="h-screen w-screen z-10"
+        ref={(mapInstance) => {
+          if (mapInstance) {
+            mapRef.current = mapInstance;
+          }
+        }}
       >
         <TileLayer
           attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
@@ -183,7 +235,7 @@ const Maps = () => {
             position={userLocation}
             icon={L.divIcon({
               className: "user-location-marker",
-              html: `<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white;"></div>`,
+              html: `<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(66, 133, 244, 0.5);"></div>`,
               iconSize: [22, 22],
               iconAnchor: [11, 11],
             })}
