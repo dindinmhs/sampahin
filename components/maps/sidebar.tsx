@@ -25,7 +25,7 @@ interface MapSidebarProps {
   location: LocationType | null;
   latestReport: CleanlinessReport | null;
   onNavigate: () => void;
-  isNavigating: boolean; // Tambahkan prop untuk status navigasi
+  isNavigating: boolean;
 }
 
 export const MapSidebar = ({
@@ -40,12 +40,10 @@ export const MapSidebar = ({
 
   if (!isOpen || !location) return null;
 
-  // Fungsi untuk menangani klik tombol lapor
   const handleReportClick = () => {
     router.push(`/grading/${location.id}`);
   };
 
-  // Fungsi untuk menangani klik tombol navigasi
   const handleNavigateClick = () => {
     if (onNavigate) {
       onNavigate();

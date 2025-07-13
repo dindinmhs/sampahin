@@ -19,17 +19,16 @@ import { LocationType } from "@/types/location";
 
 interface CleanlinessReport {
   id: number;
-  reporter: string; // UUID dari auth.users
+  reporter: string;
   score: number;
   grade: string;
   ai_description: string;
   created_at: Timestamp;
-  location: string; // foreign key ke locations
+  location: string;
   reporter_name: string;
   email: string;
 }
 
-// Komponen untuk mendapatkan lokasi pengguna
 const LocationFinder = ({
   setUserLocation,
 }: {
@@ -39,13 +38,11 @@ const LocationFinder = ({
     locationfound(e) {
       const userPos: [number, number] = [e.latlng.lat, e.latlng.lng];
       setUserLocation(userPos);
-      // Fokus map ke posisi pengguna dengan zoom yang sesuai
+
       map.setView(userPos, 15);
     },
     locationerror(e) {
       console.error("Location error:", e.message);
-      // Jika gagal mendapatkan lokasi, tetap gunakan default Jakarta
-      // Anda bisa menambahkan notifikasi ke user di sini
     },
   });
 
@@ -53,7 +50,7 @@ const LocationFinder = ({
     map.locate({
       setView: true,
       maxZoom: 15,
-      timeout: 10000, // 10 detik timeout
+      timeout: 10000,
       enableHighAccuracy: true,
     });
   }, [map]);
@@ -69,6 +66,9 @@ const Maps = () => {
   const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(
     null
   );
+  const [navigationTarget, setNavigationTarget] = useState<LocationType | null>(
+    null
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(
     null
@@ -78,14 +78,12 @@ const Maps = () => {
   const [, setMapZoom] = useState(12);
   const [isLocationLoaded, setIsLocationLoaded] = useState(false);
 
-  // Ref untuk menyimpan referensi map
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
 
   useEffect(() => {
     const getLocations = async () => {
       const supabase = createClient();
 
-      // Ambil data locations
       const { data: locationsData, error: locationsError } = await supabase
         .from("locations")
         .select("id,lan,lat,type,name,address,created_at,img_url");
@@ -95,7 +93,6 @@ const Maps = () => {
         return;
       }
 
-      // Ambil data cleanliness_reports
       const { data: reportsData, error: reportsError } = await supabase
         .from("cleanliness_reports_with_user")
         .select(
@@ -114,7 +111,6 @@ const Maps = () => {
     getLocations();
   }, []);
 
-  // Effect untuk mendapatkan lokasi GPS saat komponen dimuat
   useEffect(() => {
     if (!isLocationLoaded && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -130,8 +126,7 @@ const Maps = () => {
         },
         (error) => {
           console.error("Geolocation error:", error);
-          setIsLocationLoaded(true); // Tetap set true meskipun gagal
-          // Gunakan lokasi default Jakarta jika gagal
+          setIsLocationLoaded(true);
         },
         {
           enableHighAccuracy: true,
@@ -150,38 +145,45 @@ const Maps = () => {
     shadowUrl: undefined,
   });
 
-  // Function untuk mendapatkan laporan kebersihan terbaru untuk lokasi tertentu
+  const navigationTargetIcon = L.icon({
+    iconUrl: "/dirty.png",
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+    shadowUrl: undefined,
+    className: "navigation-target-marker",
+  });
+
   const getLatestReport = (locationId: string) => {
     const locationReports = cleanlinessReports.filter(
       (report) => report.location === locationId
     );
     if (locationReports.length === 0) return null;
 
-    // Ambil laporan terbaru berdasarkan created_at
     return locationReports.sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
   };
 
-  // Function untuk handle click marker
   const handleMarkerClick = (location: LocationType) => {
     setSelectedLocation(location);
     setIsSidebarOpen(true);
-    // Jangan reset navigasi saat memilih lokasi baru
+
+    if (isNavigating) {
+      setNavigationTarget(location);
+    }
   };
 
-  // Function untuk close sidebar
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false);
-    setSelectedLocation(null);
-    // Jangan reset navigasi saat sidebar di-close
+    if (!isNavigating) {
+      setSelectedLocation(null);
+    }
   };
 
-  // Function untuk memulai navigasi
   const handleNavigate = () => {
     if (selectedLocation && userLocation) {
-      // Validasi koordinat
       const isValidCoordinate = (coord: [number, number]) => {
         return (
           coord[0] >= -90 &&
@@ -200,21 +202,25 @@ const Maps = () => {
       }
 
       setIsNavigating(true);
+      setNavigationTarget(selectedLocation);
     } else {
       alert("Tidak dapat memulai navigasi. Pastikan lokasi Anda terdeteksi.");
     }
   };
 
-  // Function untuk membatalkan navigasi
   const handleCancelNavigation = () => {
     setIsNavigating(false);
-    setSelectedLocation(null);
+    setNavigationTarget(null);
   };
 
-  // Handler ketika lokasi dipilih dari search
   const handleSearchSelect = (loc: LocationType) => {
     setSelectedLocation(loc);
     setIsSidebarOpen(true);
+
+    if (isNavigating) {
+      setNavigationTarget(loc);
+    }
+
     if (mapRef) {
       mapRef.setView([loc.lan, loc.lat], 16, { animate: true });
     }
@@ -222,6 +228,26 @@ const Maps = () => {
 
   return (
     <div className="relative w-full h-full">
+      {/* CSS untuk styling marker navigasi */}
+      <style jsx>{`
+        .navigation-target-marker {
+          filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.7));
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.1);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+      `}</style>
+
       {/* Search input di pojok kiri atas */}
       <div className="absolute top-4 left-4 z-[1000]">
         <SearchLocation onSelect={handleSearchSelect} />
@@ -234,13 +260,6 @@ const Maps = () => {
             onClick={handleCancelNavigation}
             className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors flex items-center justify-center space-x-2 shadow-lg"
           >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
             <span>Batalkan Navigasi</span>
           </button>
         </div>
@@ -283,18 +302,22 @@ const Maps = () => {
           <Marker
             key={index}
             position={[loc.lan, loc.lat]}
-            icon={customIcon}
+            icon={
+              isNavigating && navigationTarget?.id === loc.id
+                ? navigationTargetIcon
+                : customIcon
+            }
             eventHandlers={{
               click: () => handleMarkerClick(loc),
             }}
           />
         ))}
 
-        {/* Tambahkan komponen routing jika sedang dalam mode navigasi */}
-        {isNavigating && userLocation && selectedLocation && (
+        {/* Gunakan navigationTarget untuk routing - DIPERBAIKI */}
+        {isNavigating && userLocation && navigationTarget && (
           <RoutingMachine
             startPosition={userLocation}
-            endPosition={[selectedLocation.lan, selectedLocation.lat]}
+            endPosition={[navigationTarget.lan, navigationTarget.lat]}
             isNavigating={isNavigating}
           />
         )}
