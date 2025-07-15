@@ -67,6 +67,10 @@
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* Tambahkan di bagian akhir file globals.css */
 
 /* Styling untuk marker lokasi pengguna */
