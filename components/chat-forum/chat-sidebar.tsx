@@ -19,35 +19,30 @@ interface ChatSidebarProps {
 }
 
 export const ChatSidebar = ({
-  locationId,
+  // locationId,
   locationName,
   isOpen,
   onClose,
 }: ChatSidebarProps) => {
-  const [messages, setMessages] = useState<Message[]>([
-    // ... existing code ...
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Pindahkan useEffect ke sini, sebelum conditional return
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen]);
 
-  // Jika tidak terbuka, jangan render apa-apa
   if (!isOpen) return null;
 
   const handleSendMessage = () => {
     if (newMessage.trim() === "") return;
 
-    // Simulasi pengiriman pesan tanpa database
     const message: Message = {
       id: Date.now().toString(),
       content: newMessage,
-      user_name: "You", // Nama pengguna statis untuk UI
+      user_name: "You",
       created_at: new Date().toISOString(),
     };
 

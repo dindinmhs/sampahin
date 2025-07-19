@@ -26,7 +26,7 @@ interface MapSidebarProps {
   latestReport: CleanlinessReport | null;
   onNavigate: () => void;
   isNavigating: boolean;
-  onOpenChat: () => void; // Tambahkan prop untuk membuka chat
+  onOpenChat: () => void;
 }
 
 export const MapSidebar = ({
@@ -36,7 +36,7 @@ export const MapSidebar = ({
   latestReport,
   onNavigate,
   isNavigating,
-  onOpenChat, // Tambahkan prop
+  onOpenChat,
 }: MapSidebarProps) => {
   const router = useRouter();
 
@@ -52,7 +52,6 @@ export const MapSidebar = ({
     }
   };
 
-  // Tambahkan handler untuk tombol chat
   const handleChatClick = () => {
     if (onOpenChat) {
       onOpenChat();
