@@ -42,7 +42,7 @@ export default function SearchLocation({ onSelect }: SearchLocationProps) {
   }, [query, locations]);
 
   return (
-    <div className="relative w-72">
+    <div className="relative w-30 sm:w-72">
       <Input
         type="text"
         placeholder="Cari lokasi..."
@@ -52,7 +52,11 @@ export default function SearchLocation({ onSelect }: SearchLocationProps) {
       />
       <span className="absolute left-3 top-2.5 text-gray-400">
         <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-          <path stroke="currentColor" strokeWidth="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+          <path
+            stroke="currentColor"
+            strokeWidth="2"
+            d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"
+          />
         </svg>
       </span>
       {showList && (

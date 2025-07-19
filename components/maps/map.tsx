@@ -16,6 +16,7 @@ import { MapSidebar } from "./sidebar";
 import RoutingMachine from "./routing-machine";
 import SearchLocation from "./search-location";
 import { LocationType } from "@/types/location";
+import CategoryFilter from "./category-filter";
 
 interface CleanlinessReport {
   id: number;
@@ -77,8 +78,10 @@ const Maps = () => {
   const [, setMapCenter] = useState<[number, number]>([-6.2, 106.8]); // Default Jakarta
   const [, setMapZoom] = useState(12);
   const [isLocationLoaded, setIsLocationLoaded] = useState(false);
-
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<
+    "all" | "clean" | "dirty"
+  >("all");
 
   useEffect(() => {
     const getLocations = async () => {
@@ -252,9 +255,16 @@ const Maps = () => {
         }
       `}</style>
 
-      {/* Search input di pojok kiri atas */}
-      <div className="absolute top-4 left-4 z-[1000]">
+      {/* searchbar */}
+      <div className="absolute top-4 left-4 right-4 sm:left-4 sm:right-auto z-[1000] w-1/2">
         <SearchLocation onSelect={handleSearchSelect} />
+      </div>
+
+      <div className="absolute top-16 sm:top-4 left-1/2 transform -translate-x-1/2 z-[40]">
+        <CategoryFilter
+          categoryFilter={categoryFilter}
+          setCategoryFilter={setCategoryFilter}
+        />
       </div>
 
       {/* Tombol Batalkan Navigasi di bawah tengah */}
@@ -305,6 +315,10 @@ const Maps = () => {
         {locations.map((loc, index) => {
           // Tentukan apakah lokasi bersih berdasarkan grade
           const isClean = isCleanLocation(loc.id);
+
+          // Filter berdasarkan kategori yang dipilih
+          if (categoryFilter === "clean" && !isClean) return null;
+          if (categoryFilter === "dirty" && isClean) return null;
 
           // Pilih ikon berdasarkan hasil pengecekan grade
           const locationIcon = isClean ? cleanIcon : dirtyIcon;
