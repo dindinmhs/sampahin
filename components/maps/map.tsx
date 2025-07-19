@@ -153,15 +153,6 @@ const Maps = () => {
     shadowUrl: undefined,
   });
 
-  const navigationTargetIcon = L.icon({
-    iconUrl: "/dirty.png", // Gunakan ikon sesuai dengan tipe lokasi
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -20],
-    shadowUrl: undefined,
-    className: "navigation-target-marker",
-  });
-
   const getLatestReport = (locationId: string) => {
     const locationReports = cleanlinessReports.filter(
       (report) => report.location === locationId
