@@ -49,13 +49,38 @@ const LocationFinder = ({
   });
 
   useEffect(() => {
+    // Inisialisasi lokasi pertama kali
     map.locate({
       setView: true,
       maxZoom: 15,
       timeout: 10000,
       enableHighAccuracy: true,
     });
-  }, [map]);
+
+    // Tambahkan watch position untuk memperbarui lokasi secara real-time
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const userPos: [number, number] = [
+          position.coords.latitude,
+          position.coords.longitude,
+        ];
+        setUserLocation(userPos);
+      },
+      (error) => {
+        console.error("Geolocation watch error:", error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0, // Selalu dapatkan posisi terbaru
+      }
+    );
+
+    // Bersihkan watch position saat komponen unmount
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [map, setUserLocation]);
 
   return null;
 };
