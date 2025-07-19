@@ -42,13 +42,13 @@ export default function SearchLocation({ onSelect }: SearchLocationProps) {
   }, [query, locations]);
 
   return (
-    <div className="relative w-30 sm:w-72">
+    <div className="relative w-full">
       <Input
         type="text"
         placeholder="Cari lokasi..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="pl-10 bg-white text-black ring-0 outline-none"
+        className="pl-10 bg-white text-black ring-0 outline-none w-full text-sm md:text-base"
       />
       <span className="absolute left-3 top-2.5 text-gray-400">
         <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
@@ -62,7 +62,9 @@ export default function SearchLocation({ onSelect }: SearchLocationProps) {
       {showList && (
         <ul className="absolute z-50 mt-2 w-full bg-white border rounded shadow-lg max-h-64 overflow-auto">
           {filtered.length === 0 && (
-            <li className="p-3 text-gray-500">Lokasi tidak ditemukan</li>
+            <li className="p-3 text-gray-500 text-sm">
+              Lokasi tidak ditemukan
+            </li>
           )}
           {filtered.map((loc) => (
             <li
@@ -74,7 +76,9 @@ export default function SearchLocation({ onSelect }: SearchLocationProps) {
                 setShowList(false);
               }}
             >
-              <div className="font-semibold">{loc.name}</div>
+              <div className="font-semibold text-sm md:text-base">
+                {loc.name}
+              </div>
               <div className="text-xs text-gray-500">{loc.address}</div>
             </li>
           ))}

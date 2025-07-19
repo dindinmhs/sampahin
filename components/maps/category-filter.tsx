@@ -8,10 +8,10 @@ interface Props {
 const CategoryFilter = ({ categoryFilter, setCategoryFilter }: Props) => {
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-4">
+      <div className="flex justify-center md:justify-start gap-2 md:gap-4">
         <button
           onClick={() => setCategoryFilter("all")}
-          className={`px-5 py-2 font-bold text-sm rounded-full ${
+          className={`px-3 py-1.5 md:px-5 md:py-2 font-bold text-xs md:text-sm rounded-full shadow-sm ${
             categoryFilter === "all"
               ? "bg-green-500 text-white"
               : "bg-white text-gray-700"
@@ -21,7 +21,7 @@ const CategoryFilter = ({ categoryFilter, setCategoryFilter }: Props) => {
         </button>
         <button
           onClick={() => setCategoryFilter("clean")}
-          className={`px-5 py-2 font-bold text-sm rounded-full ${
+          className={`px-3 py-1.5 md:px-5 md:py-2 font-bold text-xs md:text-sm rounded-full shadow-sm ${
             categoryFilter === "clean"
               ? "bg-green-500 text-white"
               : "bg-white text-gray-700"
@@ -31,7 +31,7 @@ const CategoryFilter = ({ categoryFilter, setCategoryFilter }: Props) => {
         </button>
         <button
           onClick={() => setCategoryFilter("dirty")}
-          className={`px-5 py-2 font-bold text-sm rounded-full ${
+          className={`px-3 py-1.5 md:px-5 md:py-2 font-bold text-xs md:text-sm rounded-full shadow-sm ${
             categoryFilter === "dirty"
               ? "bg-green-500 text-white"
               : "bg-white text-gray-700"

@@ -256,11 +256,11 @@ const Maps = () => {
       `}</style>
 
       {/* searchbar */}
-      <div className="absolute top-4 left-4 right-4 sm:left-4 sm:right-auto z-[1000] w-1/2">
+      <div className="absolute top-4 left-4 right-4 z-[40] w-1/2 sm:w-64 md:w-80 lg:w-96">
         <SearchLocation onSelect={handleSearchSelect} />
       </div>
 
-      <div className="absolute top-16 sm:top-4 left-1/2 transform -translate-x-1/2 z-[40]">
+      <div className="absolute top-16 sm:top-20 md:top-4 md:left-1/2 md:transform md:-translate-x-1/2 left-4 md:right-auto z-20 md:z-[60]">
         <CategoryFilter
           categoryFilter={categoryFilter}
           setCategoryFilter={setCategoryFilter}
