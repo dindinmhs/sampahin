@@ -462,7 +462,12 @@ export const GradingForm = () => {
             <Button
               onClick={() => setOpen(true)}
               className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-              disabled={analysisResult?.grade !== "D"}
+              // Ubah kondisi untuk memungkinkan pembagian lokasi dengan grade A atau B
+              disabled={
+                !(
+                  analysisResult?.grade === "A" || analysisResult?.grade === "B"
+                )
+              }
             >
               Bagikan
             </Button>
@@ -545,7 +550,11 @@ const GradeShareForm = ({
             name: form.nama,
             lan: form.coord[0],
             lat: form.coord[1],
-            type: "cleanliness",
+            // Tentukan tipe berdasarkan grade
+            type:
+              analysis_result?.grade === "A" || analysis_result?.grade === "B"
+                ? "clean"
+                : "dirty",
             address: form.alamat,
             img_url: publicUrl,
           },

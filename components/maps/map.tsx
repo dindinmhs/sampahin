@@ -137,7 +137,7 @@ const Maps = () => {
     }
   }, [isLocationLoaded]);
 
-  const customIcon = L.icon({
+  const dirtyIcon = L.icon({
     iconUrl: "/dirty.png",
     iconSize: [32, 32],
     iconAnchor: [16, 16],
@@ -145,8 +145,16 @@ const Maps = () => {
     shadowUrl: undefined,
   });
 
+  const cleanIcon = L.icon({
+    iconUrl: "/clean.png",
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+    shadowUrl: undefined,
+  });
+
   const navigationTargetIcon = L.icon({
-    iconUrl: "/dirty.png",
+    iconUrl: "/dirty.png", // Gunakan ikon sesuai dengan tipe lokasi
     iconSize: [40, 40],
     iconAnchor: [20, 20],
     popupAnchor: [0, -20],
@@ -166,6 +174,11 @@ const Maps = () => {
     )[0];
   };
 
+  // Fungsi untuk menentukan apakah lokasi bersih berdasarkan grade
+  const isCleanLocation = (locationId: string) => {
+    const report = getLatestReport(locationId);
+    return report && (report.grade === "A" || report.grade === "B");
+  };
   const handleMarkerClick = (location: LocationType) => {
     setSelectedLocation(location);
     setIsSidebarOpen(true);
@@ -298,20 +311,38 @@ const Maps = () => {
           />
         )}
 
-        {locations.map((loc, index) => (
-          <Marker
-            key={index}
-            position={[loc.lan, loc.lat]}
-            icon={
-              isNavigating && navigationTarget?.id === loc.id
-                ? navigationTargetIcon
-                : customIcon
-            }
-            eventHandlers={{
-              click: () => handleMarkerClick(loc),
-            }}
-          />
-        ))}
+        {locations.map((loc, index) => {
+          // Tentukan apakah lokasi bersih berdasarkan grade
+          const isClean = isCleanLocation(loc.id);
+
+          // Pilih ikon berdasarkan hasil pengecekan grade
+          const locationIcon = isClean ? cleanIcon : dirtyIcon;
+
+          // Ikon untuk target navigasi
+          const navIcon = L.icon({
+            iconUrl: isClean ? "/clean.png" : "/dirty.png",
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+            popupAnchor: [0, -20],
+            shadowUrl: undefined,
+            className: "navigation-target-marker",
+          });
+
+          return (
+            <Marker
+              key={index}
+              position={[loc.lan, loc.lat]}
+              icon={
+                isNavigating && navigationTarget?.id === loc.id
+                  ? navIcon
+                  : locationIcon
+              }
+              eventHandlers={{
+                click: () => handleMarkerClick(loc),
+              }}
+            />
+          );
+        })}
 
         {/* Gunakan navigationTarget untuk routing - DIPERBAIKI */}
         {isNavigating && userLocation && navigationTarget && (
