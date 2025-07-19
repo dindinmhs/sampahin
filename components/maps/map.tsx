@@ -17,6 +17,7 @@ import RoutingMachine from "./routing-machine";
 import SearchLocation from "./search-location";
 import { LocationType } from "@/types/location";
 import CategoryFilter from "./category-filter";
+import ChatSidebar from "@/components/chat-forum/chat-sidebar"; // Tambahkan import
 
 interface CleanlinessReport {
   id: number;
@@ -82,6 +83,9 @@ const Maps = () => {
   const [categoryFilter, setCategoryFilter] = useState<
     "all" | "clean" | "dirty"
   >("all");
+
+  // Tambahkan state untuk chat forum
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     const getLocations = async () => {
@@ -233,6 +237,15 @@ const Maps = () => {
     }
   };
 
+  // Tambahkan handler untuk membuka/menutup chat
+  const handleOpenChat = () => {
+    setIsChatOpen(true);
+  };
+
+  const handleCloseChat = () => {
+    setIsChatOpen(false);
+  };
+
   return (
     <div className="relative w-full h-full">
       {/* CSS untuk styling marker navigasi */}
@@ -369,6 +382,15 @@ const Maps = () => {
         }
         onNavigate={handleNavigate}
         isNavigating={isNavigating}
+        onOpenChat={handleOpenChat} // Tambahkan prop
+      />
+
+      {/* Chat Sidebar */}
+      <ChatSidebar
+        locationId={selectedLocation?.id || ""}
+        locationName={selectedLocation?.name || ""}
+        isOpen={isChatOpen && selectedLocation !== null}
+        onClose={handleCloseChat}
       />
     </div>
   );
