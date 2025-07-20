@@ -46,35 +46,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Transform data dengan nama pengguna yang sebenarnya dari cleanliness_reports_with_user
-    const transformedMessages = await Promise.all((messages || []).map(async (msg) => {
-      let displayName = "Unknown User";
+    // Transform data dengan nama pengguna - gunakan nama sederhana saja
+    const transformedMessages = (messages || []).map((msg) => {
+      let displayName = "Anonymous User";
       
-      try {
-        // Cari nama user dari cleanliness_reports_with_user berdasarkan reporter (sender_id)
-        const { data: userInfo, error: userError } = await supabase
-          .from("cleanliness_reports_with_user")
-          .select("reporter_name, email")
-          .eq("reporter", msg.sender_id)
-          .limit(1)
-          .single();
-        
-        if (!userError && userInfo) {
-          displayName = userInfo.reporter_name || userInfo.email?.split('@')[0] || "Unknown User";
-        } else {
-          // Fallback: gunakan short ID
-          if (msg.sender_id && msg.sender_id.length >= 8) {
-            const shortId = msg.sender_id.slice(-8);
-            displayName = `User ${shortId}`;
-          }
-        }
-      } catch (error) {
-        console.log("Failed to get user info for", msg.sender_id, error);
-        // Fallback: gunakan short ID
-        if (msg.sender_id && msg.sender_id.length >= 8) {
-          const shortId = msg.sender_id.slice(-8);
-          displayName = `User ${shortId}`;
-        }
+      // Gunakan short ID yang lebih readable
+      if (msg.sender_id && msg.sender_id.length >= 8) {
+        const shortId = msg.sender_id.slice(-8);
+        displayName = `User ${shortId}`;
       }
 
       return {
@@ -84,7 +63,7 @@ export async function GET(request: NextRequest) {
         created_at: msg.created_at,
         sender_id: msg.sender_id,
       };
-    }));
+    });
 
     return NextResponse.json({ 
       messages: transformedMessages

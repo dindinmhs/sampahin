@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Send, Loader2, AlertCircle } from "lucide-react";
 import Avatar from "../common/avatar";
 import { createClient } from "@/lib/supabase/client";
@@ -41,9 +41,54 @@ export const ChatSidebar = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{
+    id: string;
+    email?: string;
+    user_metadata?: {
+      full_name?: string;
+    };
+  } | null>(null);
+  const [userNameCache, setUserNameCache] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
+
+  /**
+   * Mendapatkan nama user berdasarkan sender_id dari cache atau API
+   */
+  const getUserName = useCallback(async (senderId: string): Promise<string> => {
+    // Cek cache terlebih dahulu
+    if (userNameCache[senderId]) {
+      return userNameCache[senderId];
+    }
+
+    try {
+      // Coba ambil informasi user dari API
+      const response = await fetch(`/api/users/${senderId}`);
+      if (response.ok) {
+        const userData = await response.json();
+        const displayName = userData.full_name || userData.email?.split('@')[0] || `User ${senderId.slice(-8)}`;
+        
+        // Simpan ke cache
+        setUserNameCache(prev => ({
+          ...prev,
+          [senderId]: displayName
+        }));
+        
+        return displayName;
+      }
+    } catch (error) {
+      console.log("Failed to fetch user info for", senderId, error);
+    }
+
+    // Fallback: gunakan short ID
+    const fallbackName = `User ${senderId.slice(-8)}`;
+    setUserNameCache(prev => ({
+      ...prev,
+      [senderId]: fallbackName
+    }));
+    
+    return fallbackName;
+  }, [userNameCache]);
 
   /**
    * Mengecek status autentikasi pengguna saat ini
@@ -58,9 +103,9 @@ export const ChatSidebar = ({
 
   /**
    * Mengambil daftar pesan chat dari server berdasarkan report_id
-   * Pesan dari pengguna saat ini akan ditampilkan dengan nama "You"
+   * Menggunakan user metadata untuk menampilkan nama yang benar
    */
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!reportId) {
       setError("Report ID tidak tersedia");
       return;
@@ -77,30 +122,39 @@ export const ChatSidebar = ({
         throw new Error(data.error || "Failed to fetch messages");
       }
 
-      // Update nama pengguna untuk pesan dari user saat ini
-      const updatedMessages = (data.messages || []).map((message: Message) => {
-        // Jika pesan dari pengguna saat ini, tampilkan sebagai "You"
+      // Update nama pengguna menggunakan user metadata dan cache
+      const updatedMessages = await Promise.all((data.messages || []).map(async (message: Message) => {
+        // Jika pesan dari pengguna saat ini, gunakan nama dari metadata
         if (user && message.sender_id === user.id) {
+          const displayName = user.user_metadata?.full_name || 
+                             user.email?.split('@')[0] || 
+                             "Unknown User";
           return {
             ...message,
-            user_name: "You"
+            user_name: displayName
           };
         }
-        // Untuk pengguna lain, gunakan nama yang sudah didapat dari server
-        return message;
-      });
+        
+        // Untuk pengguna lain, coba ambil nama dari cache atau API
+        const userName = await getUserName(message.sender_id);
+        return {
+          ...message,
+          user_name: userName
+        };
+      }));
 
       setMessages(updatedMessages);
     } catch (err) {
       setError("Gagal memuat pesan");
+      console.error("Error fetching messages:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportId, user, getUserName]);
 
   /**
    * Mengirim pesan baru ke server dan menambahkannya ke state lokal
-   * Pesan akan langsung ditampilkan dengan nama "You" untuk pengguna saat ini
+   * Pesan akan ditampilkan dengan nama asli pengirim
    */
   const sendMessage = async () => {
     if (!newMessage.trim() || sending || !reportId) return;
@@ -129,9 +183,12 @@ export const ChatSidebar = ({
       }
 
       if (data.message) {
+        // Update nama pesan dengan metadata user saat ini
         const messageWithCorrectName = {
           ...data.message,
-          user_name: "You"
+          user_name: user?.user_metadata?.full_name || 
+                    user?.email?.split('@')[0] || 
+                    data.message.user_name
         };
         
         setMessages(prev => [...prev, messageWithCorrectName]);
@@ -151,12 +208,14 @@ export const ChatSidebar = ({
     }
   };
 
- 
+  /**
+   * Load pesan saat komponen dibuka
+   */
   useEffect(() => {
     if (isOpen && reportId) {
       fetchMessages();
     }
-  }, [isOpen, reportId, user]);
+  }, [isOpen, reportId, fetchMessages, user]);
 
   /**
    * Auto scroll ke bawah saat ada pesan baru

@@ -28,7 +28,6 @@ interface MapSidebarProps {
   latestReport: CleanlinessReport | null;
   onNavigate: () => void;
   isNavigating: boolean;
-  onOpenChat: () => void;
 }
 
 export const MapSidebar = ({
@@ -38,7 +37,6 @@ export const MapSidebar = ({
   latestReport,
   onNavigate,
   isNavigating,
-  onOpenChat,
 }: MapSidebarProps) => {
   const router = useRouter();
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -171,8 +169,8 @@ export const MapSidebar = ({
                       ? "bg-orange-500"
                       : "bg-red-500"
                   }`}
-                  style={{ width: `${Math.min(100, Math.max(0, latestReport.score))}%` }}
-                ></div>
+                  {...{style: {width: `${Math.min(100, Math.max(0, latestReport.score))}%`}}}
+                />
               </div>
 
               {/* AI Description */}
