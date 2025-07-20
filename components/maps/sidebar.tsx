@@ -4,8 +4,10 @@ import { X } from "lucide-react";
 import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Avatar from "../common/avatar";
 import { LocationType } from "@/types/location";
+import ChatSidebar from "../chat-forum/chat-sidebar";
 
 interface CleanlinessReport {
   id: number;
@@ -39,6 +41,7 @@ export const MapSidebar = ({
   onOpenChat,
 }: MapSidebarProps) => {
   const router = useRouter();
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   if (!isOpen || !location) return null;
 
@@ -53,9 +56,15 @@ export const MapSidebar = ({
   };
 
   const handleChatClick = () => {
-    if (onOpenChat) {
-      onOpenChat();
+    if (latestReport) {
+      setIsChatOpen(true);
+    } else {
+      alert("Belum ada laporan untuk lokasi ini. Chat komunitas hanya tersedia untuk lokasi yang sudah memiliki laporan kebersihan.");
     }
+  };
+
+  const handleCloseChatSidebar = () => {
+    setIsChatOpen(false);
   };
 
   return (
@@ -65,6 +74,7 @@ export const MapSidebar = ({
         <h2 className="text-lg font-bold text-green-800">Detail Lokasi</h2>
         <button
           onClick={onClose}
+          title="Tutup sidebar"
           className="p-2 hover:bg-green-100 rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-green-600" />
@@ -152,7 +162,7 @@ export const MapSidebar = ({
               {/* Progress Bar */}
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className={`h-2 rounded-full ${
+                  className={`h-2 rounded-full transition-all duration-300 ${
                     latestReport.score >= 80
                       ? "bg-green-500"
                       : latestReport.score >= 60
@@ -161,7 +171,7 @@ export const MapSidebar = ({
                       ? "bg-orange-500"
                       : "bg-red-500"
                   }`}
-                  style={{ width: `${latestReport.score}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, latestReport.score))}%` }}
                 ></div>
               </div>
 
@@ -272,7 +282,12 @@ export const MapSidebar = ({
         <div className="mb-6">
           <button
             onClick={handleChatClick}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+            disabled={!latestReport}
+            className={`w-full py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2 ${
+              latestReport 
+                ? "bg-purple-600 hover:bg-purple-700 text-white" 
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -281,10 +296,22 @@ export const MapSidebar = ({
                 clipRule="evenodd"
               />
             </svg>
-            <span>Buka Chat Komunitas</span>
+            <span>
+              {latestReport ? "Buka Chat Komunitas" : "Chat Tidak Tersedia"}
+            </span>
           </button>
         </div>
       </div>
+
+      {/* Chat Sidebar */}
+      {latestReport && (
+        <ChatSidebar
+          reportId={latestReport.id.toString()}
+          locationName={location.name}
+          isOpen={isChatOpen}
+          onClose={handleCloseChatSidebar}
+        />
+      )}
     </div>
   );
 };
