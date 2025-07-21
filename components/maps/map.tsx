@@ -1,5 +1,5 @@
 "use client";
-
+// map.tsx
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -15,7 +15,7 @@ import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
 import { MapSidebar } from "./sidebar";
 import RoutingMachine from "./routing-machine";
 import SearchLocation from "./search-location";
-import { LocationType } from "@/types/location";
+import { LocationCleanerType, LocationType } from "@/types/location";
 import CategoryFilter from "./category-filter";
 import ChatSidebar from "@/components/chat-forum/chat-sidebar"; // Tambahkan import
 
@@ -108,6 +108,7 @@ const Maps = () => {
   const [categoryFilter, setCategoryFilter] = useState<
     "all" | "clean" | "dirty"
   >("all");
+  const [locationCleaners, setLocationCleaners] = useState<LocationCleanerType[]>([]);
 
   // Tambahkan state untuk chat forum
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -168,6 +169,17 @@ const Maps = () => {
       );
     }
   }, [isLocationLoaded]);
+
+  useEffect(() => {
+    const getLocationCleaners = async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("location_cleaners_with_name")
+        .select("id,location_id,user_id,cleaner_name");
+      if (!error) setLocationCleaners(data || []);
+    };
+    getLocationCleaners();
+  }, [selectedLocation, isSidebarOpen]);
 
   const dirtyIcon = L.icon({
     iconUrl: "/dirty.png",
@@ -320,6 +332,7 @@ const Maps = () => {
       <MapContainer
         zoomControl={false}
         center={[-6.2, 106.8]}
+        minZoom={4}
         zoom={12}
         className="h-screen w-screen z-10"
         ref={(mapInstance) => {
@@ -399,6 +412,8 @@ const Maps = () => {
 
       {/* Sidebar */}
       <MapSidebar
+        userLocation={userLocation}
+        locationCleaners={locationCleaners}
         isOpen={isSidebarOpen}
         onClose={handleCloseSidebar}
         location={selectedLocation}

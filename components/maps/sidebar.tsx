@@ -1,13 +1,16 @@
 "use client";
-
+// sidebar.tsx
 import { X } from "lucide-react";
 import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Avatar from "../common/avatar";
-import { LocationType } from "@/types/location";
+import { LocationCleanerType, LocationType } from "@/types/location";
 import ChatSidebar from "../chat-forum/chat-sidebar";
+import { getDistanceMeters } from "@/lib/utils";
+import { useUserStore } from "@/lib/store/user-store";
+import { createClient } from "@/lib/supabase/client";
 
 interface CleanlinessReport {
   id: number;
@@ -28,6 +31,8 @@ interface MapSidebarProps {
   latestReport: CleanlinessReport | null;
   onNavigate: () => void;
   isNavigating: boolean;
+  locationCleaners : LocationCleanerType[];
+  userLocation: [number, number]|null; 
 }
 
 export const MapSidebar = ({
@@ -37,9 +42,12 @@ export const MapSidebar = ({
   latestReport,
   onNavigate,
   isNavigating,
+  locationCleaners,
+  userLocation
 }: MapSidebarProps) => {
   const router = useRouter();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const user = useUserStore((state) => state.user);
 
   if (!isOpen || !location) return null;
 
@@ -64,6 +72,84 @@ export const MapSidebar = ({
   const handleCloseChatSidebar = () => {
     setIsChatOpen(false);
   };
+
+  const cleaners = locationCleaners.filter(
+    (c) => c.location_id === location?.id
+  );
+
+  const handleStartCleaning = async () => {
+  const supabase = createClient();
+  // Update type location jadi cleaning
+  await supabase
+    .from("locations")
+    .update({ type: "cleaning" })
+    .eq("id", location?.id);
+
+  // Tambah ke location_cleaners
+  await supabase
+    .from("location_cleaners")
+    .insert({
+      user_id: user?.id,
+      location_id: location?.id,
+    });
+
+  // Refresh data
+  // ...refresh state...
+};
+
+  const handleCancelCleaning = async () => {
+    const supabase = createClient();
+    // Hapus dari location_cleaners
+    await supabase
+      .from("location_cleaners")
+      .delete()
+      .eq("user_id", user?.id)
+      .eq("location_id", location?.id);
+
+    // Jika tidak ada pembersih, update type location jadi dirty
+    const { data: cleaners } = await supabase
+      .from("location_cleaners")
+      .select("*")
+      .eq("location_id", location?.id);
+
+    if (!cleaners || cleaners.length === 0) {
+      await supabase
+        .from("locations")
+        .update({ type: "dirty" })
+        .eq("id", location?.id);
+    }
+
+    // Refresh data
+    // ...refresh state...
+  };
+
+  const handleReport = async () => {
+    // ...fungsi lapor yang sudah ada...
+    // Setelah lapor, update type location jadi cleanline
+    const supabase = createClient();
+    await supabase
+      .from("locations")
+      .update({ type: "dirty" })
+      .eq("id", location?.id);
+
+    // Hapus semua pembersih dari location_cleaners
+    await supabase
+      .from("location_cleaners")
+      .delete()
+      .eq("location_id", location?.id);
+
+    // Refresh data
+    // ...refresh state...
+  };
+
+  const isDirty = location.type === "dirty";
+  const isCleaning = location.type === "cleaning";
+  const userIsNearby =
+    userLocation &&
+    location &&
+    getDistanceMeters(userLocation[0], userLocation[1], location.lan, location.lat) < 100;
+  console.log(userIsNearby)
+  const userIsCleaning = cleaners.some((c) => c.user_id === user?.id);
 
   return (
     <div className="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out">
@@ -235,7 +321,22 @@ export const MapSidebar = ({
             </p>
           </div>
         )}
-
+        <div className="mb-4 flex items-center">
+          {cleaners.slice(0, 5).map((c) => (
+            <Avatar
+              key={c.user_id}
+              displayName={c.cleaner_name || "Anonim"}
+              // src={c.user?.avatar_url}
+              size="sm"
+              className="-ml-2 border-2 border-white"
+            />
+          ))}
+          {cleaners.length > 5 && (
+            <span className="ml-2 text-xs bg-gray-200 rounded-full px-2 py-1">
+              +{cleaners.length - 5}
+            </span>
+          )}
+        </div>
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           <button
@@ -298,6 +399,30 @@ export const MapSidebar = ({
               {latestReport ? "Buka Chat Komunitas" : "Chat Tidak Tersedia"}
             </span>
           </button>
+          {isDirty && userIsNearby && !isCleaning && (
+          <button
+            onClick={handleStartCleaning}
+            className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+          >
+            <span>Bersihkan</span>
+          </button>
+        )}
+        {isCleaning && userIsCleaning && (
+          <button
+            onClick={handleReport}
+            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+          >
+            <span>Lapor</span>
+          </button>
+        )}
+        {isCleaning && userIsCleaning && (
+          <button
+            onClick={handleCancelCleaning}
+            className="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+          >
+            <span>Batal Bersihkan</span>
+          </button>
+        )}
         </div>
       </div>
 

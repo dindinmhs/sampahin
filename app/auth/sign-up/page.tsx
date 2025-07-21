@@ -42,6 +42,7 @@ export default function Page() {
         options: {
           data: {
             full_name: nama,
+            point: 0
           },
         },
       });

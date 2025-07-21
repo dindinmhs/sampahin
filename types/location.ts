@@ -9,3 +9,10 @@ export interface LocationType {
     created_at?: string;
     updated_at?: string;
 }
+
+export interface LocationCleanerType {
+    id: string;
+    location_id: string;
+    user_id: string;
+    cleaner_name: string;
+}

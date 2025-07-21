@@ -463,11 +463,6 @@ export const GradingForm = () => {
               onClick={() => setOpen(true)}
               className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
               // Ubah kondisi untuk memungkinkan pembagian lokasi dengan grade A atau B
-              disabled={
-                !(
-                  analysisResult?.grade === "A" || analysisResult?.grade === "B"
-                )
-              }
             >
               Bagikan
             </Button>
