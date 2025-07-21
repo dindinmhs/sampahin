@@ -5,7 +5,6 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import { hasEnvVars } from "@/lib/utils";
 import { Logo } from "@/components/common/logo";
 import MenuDropdown from "@/components/maps/menu";
