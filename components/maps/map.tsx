@@ -263,9 +263,9 @@ const Maps = () => {
   };
 
   // Tambahkan handler untuk membuka/menutup chat
-  const handleOpenChat = () => {
-    setIsChatOpen(true);
-  };
+  // const handleOpenChat = () => {
+  //   setIsChatOpen(true);
+  // };
 
   const handleCloseChat = () => {
     setIsChatOpen(false);
@@ -407,12 +407,12 @@ const Maps = () => {
         }
         onNavigate={handleNavigate}
         isNavigating={isNavigating}
-        onOpenChat={handleOpenChat} // Tambahkan prop
+        // onOpenChat={handleOpenChat} // Tambahkan prop
       />
 
       {/* Chat Sidebar */}
       <ChatSidebar
-        locationId={selectedLocation?.id || ""}
+        reportId={selectedLocation?.id || ""}
         locationName={selectedLocation?.name || ""}
         isOpen={isChatOpen && selectedLocation !== null}
         onClose={handleCloseChat}
