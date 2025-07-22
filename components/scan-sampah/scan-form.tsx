@@ -1,9 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState, useRef } from "react";
+import { useState, useRef} from "react";
 import { Camera, Upload, X } from "lucide-react";
 import Image from "next/image";
+import { useUserStore } from "@/lib/store/user-store";
+import { createClient } from "@/lib/supabase/client";
 
 export const ScanForm = () => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -16,6 +18,7 @@ export const ScanForm = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const user = useUserStore((state) => state.user);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -251,8 +254,31 @@ export const ScanForm = () => {
       setAnalysisResult("Terjadi kesalahan saat analisis. Silakan coba lagi.");
     } finally {
       setIsAnalyzing(false);
+      const fetchMissions = async () => {
+      const supabase = createClient();
+      if (!user?.id) return;
+      const { data, error } = await supabase
+        .from("daily_missions_with_status")
+        .select("*")
+        .eq(`user_id`, user.id)
+        .order("point_reward", { ascending: true });
+      if (error) {
+        console.error("Error fetching missions:", error.message);
+      }
+      if (data?.length == 0) {
+        await supabase
+          .from('user_mission_logs')
+          .insert([
+            { user_id: user.id, mission_id: 'b2d3dba2-ef1b-4396-b098-47524b407709', completed_at : new Date().toISOString(), point_earned:10},
+          ])
+      }
+
+    };
+    fetchMissions()
     }
   };
+
+    
 
   return (
     <div className=" bg-gray-50 p-4">

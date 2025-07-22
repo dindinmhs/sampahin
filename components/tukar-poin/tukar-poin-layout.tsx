@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { useUserStore } from "@/lib/store/user-store";
+import { createClient } from "@/lib/supabase/client";
 
 interface PulsaOption {
   id: number;
@@ -15,17 +17,19 @@ interface PulsaOption {
 }
 
 interface TukarPoinClientProps {
-  initialUserPoints: number;
   expiryDate: string;
   pulsaOptions: PulsaOption[];
 }
 
 export function TukarPoinClient({
-  initialUserPoints,
   expiryDate,
   pulsaOptions,
 }: TukarPoinClientProps) {
-  const [userPoints, setUserPoints] = useState(initialUserPoints);
+  const [userPoints, setUserPoints] = useState(0);
+  const user = useUserStore((state) => state.user);
+  const [loading, setLoading] = useState(false);
+
+  const supabase = createClient();
 
   const handlePulsaRedeem = (pointCost: number) => {
     if (userPoints >= pointCost) {
@@ -36,6 +40,29 @@ export function TukarPoinClient({
     }
   };
 
+  
+
+  const fetchPoin = useCallback(async () => {
+      setLoading(true);
+  
+      const { data, error } = await supabase
+        .from("total_poin_per_user")
+        .select("total_poin")
+        .eq("user_id", user?.id)
+        .single()
+  
+  
+      if (!error && data) {
+        setUserPoints(data.total_poin);
+      }
+      setLoading(false);
+    }, [supabase, user?.id]);
+
+    useEffect(() => {
+      fetchPoin();
+    }, [fetchPoin]);
+
+
   return (
     <>
       {/* Poin Section */}
@@ -44,7 +71,7 @@ export function TukarPoinClient({
           <div className="w-6 h-6 rounded-full bg-yellow-400 flex items-center justify-center">
             <span className="text-xs text-white font-bold">P</span>
           </div>
-          <h2 className="text-2xl font-bold">{userPoints}</h2>
+          {!loading && <h2 className="text-2xl font-bold">{userPoints}</h2>}
         </div>
 
         <div className="flex items-center gap-2 text-gray-500 text-sm">
@@ -52,9 +79,9 @@ export function TukarPoinClient({
           <span>Berakhir pada {expiryDate}</span>
         </div>
 
-        <Button variant="outline" className="mt-4 text-gray-600">
+        <Link href={'/riwayat-poin'} className="mt-4 text-gray-600">
           Lihat Histori
-        </Button>
+        </Link>
       </div>
 
       {/* Pulsa Section */}

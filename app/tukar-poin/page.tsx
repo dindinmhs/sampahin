@@ -52,7 +52,6 @@ const pulsaOptions = [
 
 async function getUserData() {
   return {
-    userPoints: 525,
     expiryDate: "8 Feb 2026",
   };
 }
@@ -76,7 +75,6 @@ export default async function TukarPoinPage() {
         </nav>
 
         <TukarPoinClient
-          initialUserPoints={userData.userPoints}
           expiryDate={userData.expiryDate}
           pulsaOptions={pulsaOptions}
         />
