@@ -48,47 +48,8 @@ export const ChatSidebar = ({
       full_name?: string;
     };
   } | null>(null);
-  const [userNameCache, setUserNameCache] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
-
-  /**
-   * Mendapatkan nama user berdasarkan sender_id dari cache atau API
-   */
-  const getUserName = useCallback(async (senderId: string): Promise<string> => {
-    // Cek cache terlebih dahulu
-    if (userNameCache[senderId]) {
-      return userNameCache[senderId];
-    }
-
-    try {
-      // Coba ambil informasi user dari API
-      const response = await fetch(`/api/users/${senderId}`);
-      if (response.ok) {
-        const userData = await response.json();
-        const displayName = userData.full_name || userData.email?.split('@')[0] || `User ${senderId.slice(-8)}`;
-        
-        // Simpan ke cache
-        setUserNameCache(prev => ({
-          ...prev,
-          [senderId]: displayName
-        }));
-        
-        return displayName;
-      }
-    } catch (error) {
-      console.log("Failed to fetch user info for", senderId, error);
-    }
-
-    // Fallback: gunakan short ID
-    const fallbackName = `User ${senderId.slice(-8)}`;
-    setUserNameCache(prev => ({
-      ...prev,
-      [senderId]: fallbackName
-    }));
-    
-    return fallbackName;
-  }, [userNameCache]);
 
   /**
    * Mengecek status autentikasi pengguna saat ini
@@ -103,7 +64,7 @@ export const ChatSidebar = ({
 
   /**
    * Mengambil daftar pesan chat dari server berdasarkan report_id
-   * Menggunakan user metadata untuk menampilkan nama yang benar
+   * Menggunakan view forum_reports_chat_with_user yang sudah include sender_name
    */
   const fetchMessages = useCallback(async () => {
     if (!reportId) {
@@ -122,39 +83,18 @@ export const ChatSidebar = ({
         throw new Error(data.error || "Failed to fetch messages");
       }
 
-      // Update nama pengguna menggunakan user metadata dan cache
-      const updatedMessages = await Promise.all((data.messages || []).map(async (message: Message) => {
-        // Jika pesan dari pengguna saat ini, gunakan nama dari metadata
-        if (user && message.sender_id === user.id) {
-          const displayName = user.user_metadata?.full_name || 
-                             user.email?.split('@')[0] || 
-                             "Unknown User";
-          return {
-            ...message,
-            user_name: displayName
-          };
-        }
-        
-        // Untuk pengguna lain, coba ambil nama dari cache atau API
-        const userName = await getUserName(message.sender_id);
-        return {
-          ...message,
-          user_name: userName
-        };
-      }));
-
-      setMessages(updatedMessages);
+      // Data messages sudah termasuk sender_name dari view
+      setMessages(data.messages || []);
     } catch (err) {
       setError("Gagal memuat pesan");
       console.error("Error fetching messages:", err);
     } finally {
       setLoading(false);
     }
-  }, [reportId, user, getUserName]);
+  }, [reportId]);
 
   /**
    * Mengirim pesan baru ke server dan menambahkannya ke state lokal
-   * Pesan akan ditampilkan dengan nama asli pengirim
    */
   const sendMessage = async () => {
     if (!newMessage.trim() || sending || !reportId) return;
@@ -183,21 +123,9 @@ export const ChatSidebar = ({
       }
 
       if (data.message) {
-        // Update nama pesan dengan metadata user saat ini
-        const messageWithCorrectName = {
-          ...data.message,
-          user_name: user?.user_metadata?.full_name || 
-                    user?.email?.split('@')[0] || 
-                    data.message.user_name
-        };
-        
-        setMessages(prev => [...prev, messageWithCorrectName]);
+        // Tambahkan pesan ke state lokal
+        setMessages(prev => [...prev, data.message]);
         setNewMessage("");
-        
-        // Refresh pesan dari server setelah delay singkat untuk mendapatkan update nama user lain
-        setTimeout(() => {
-          fetchMessages();
-        }, 500);
       } else {
         setError("Pesan terkirim tapi tidak ada data response");
       }
@@ -209,13 +137,88 @@ export const ChatSidebar = ({
   };
 
   /**
-   * Load pesan saat komponen dibuka
+   * Load pesan saat komponen dibuka dan setup realtime subscription
    */
   useEffect(() => {
     if (isOpen && reportId) {
       fetchMessages();
+
+      // Setup realtime subscription sederhana
+      const channel = supabase
+        .channel(`chat-${reportId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'forum_reports_chat',
+            filter: `report_id=eq.${reportId}`
+          },
+          async (payload) => {
+            console.log('Pesan baru diterima:', payload);
+            
+            // Untuk realtime, gunakan data dari payload dan ambil nama user
+            try {
+              let displayName = "Anonymous User";
+              
+              // Jika pesan dari user saat ini, gunakan user metadata
+              if (user && payload.new.sender_id === user.id) {
+                displayName = user.user_metadata?.full_name || 
+                             user.email?.split('@')[0] || 
+                             "You";
+              } else {
+                // Untuk user lain, ambil dari view untuk mendapatkan sender_name
+                try {
+                  const { data: userData } = await supabase
+                    .from('forum_reports_chat_with_user')
+                    .select('sender_name, email')
+                    .eq('id', payload.new.id)
+                    .single();
+                  
+                  if (userData) {
+                    displayName = userData.sender_name || 
+                                 userData.email?.split('@')[0] || 
+                                 `User ${payload.new.sender_id.slice(-8)}`;
+                  } else {
+                    displayName = `User ${payload.new.sender_id.slice(-8)}`;
+                  }
+                } catch (err) {
+                  console.log('Failed to get user data for realtime:', err);
+                  displayName = `User ${payload.new.sender_id.slice(-8)}`;
+                }
+              }
+
+              const transformedMessage: Message = {
+                id: payload.new.id.toString(),
+                content: payload.new.message,
+                user_name: displayName,
+                created_at: payload.new.created_at,
+                sender_id: payload.new.sender_id,
+              };
+
+              // Cek apakah pesan sudah ada untuk menghindari duplikat
+              setMessages(prev => {
+                const exists = prev.some(msg => msg.id === transformedMessage.id);
+                if (!exists) {
+                  return [...prev, transformedMessage];
+                }
+                return prev;
+              });
+            } catch (error) {
+              console.error('Error processing realtime message:', error);
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log(`Realtime subscription status: ${status}`);
+        });
+
+      // Cleanup subscription saat komponen unmount atau chat ditutup
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  }, [isOpen, reportId, fetchMessages, user]);
+  }, [isOpen, reportId, fetchMessages, supabase, user]);
 
   /**
    * Auto scroll ke bawah saat ada pesan baru
