@@ -41,8 +41,7 @@ export default function Page() {
         password,
         options: {
           data: {
-            full_name: nama,
-            point: 0
+            full_name: nama
           },
         },
       });
