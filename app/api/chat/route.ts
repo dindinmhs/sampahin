@@ -18,18 +18,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Mengambil pesan chat dari tabel forum_reports_chat berdasarkan report_id
+    // Mengambil pesan chat dari view forum_reports_chat_with_user
     let { data: messages, error } = await supabase
-      .from("forum_reports_chat")
-      .select("id, message, created_at, sender_id, report_id")
+      .from("forum_reports_chat_with_user")
+      .select("id, message, created_at, report_id, email, sender_name")
       .eq("report_id", reportId)
       .order("created_at", { ascending: true });
+
+    // Get current user untuk menentukan apakah pesan dari user sendiri
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
 
     // Jika tidak ditemukan dan reportId seperti UUID, coba partial match
     if ((!messages || messages.length === 0) && reportId.length > 10) {
       const { data: partialMessages, error: partialError } = await supabase
-        .from("forum_reports_chat")
-        .select("id, message, created_at, sender_id, report_id")
+        .from("forum_reports_chat_with_user")
+        .select("id, message, created_at, report_id, email, sender_name")
         .like("report_id", `${reportId.substring(0, 20)}%`)
         .order("created_at", { ascending: true });
       
@@ -46,24 +49,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Transform data dengan nama pengguna - gunakan nama sederhana saja
-    const transformedMessages = (messages || []).map((msg) => {
-      let displayName = "Anonymous User";
+    // Transform data menggunakan sender_name dari view
+    const transformedMessages = await Promise.all((messages || []).map(async (msg) => {
+      const displayName = msg.sender_name || 
+                         msg.email?.split('@')[0] || 
+                         'Anonymous User';
       
-      // Gunakan short ID yang lebih readable
-      if (msg.sender_id && msg.sender_id.length >= 8) {
-        const shortId = msg.sender_id.slice(-8);
-        displayName = `User ${shortId}`;
+      // Ambil sender_id yang sebenarnya dari tabel untuk pengecekan current user
+      let actualSenderId = 'unknown';
+      try {
+        const { data: tableMsg } = await supabase
+          .from('forum_reports_chat')
+          .select('sender_id')
+          .eq('id', msg.id)
+          .single();
+        
+        actualSenderId = tableMsg?.sender_id || 'unknown';
+      } catch (err) {
+        console.log('Failed to get sender_id:', err);
       }
-
+      
       return {
-        id: msg.id.toString(),
-        content: msg.message,
+        id: msg.id?.toString() || 'unknown',
+        content: msg.message || '',
         user_name: displayName,
-        created_at: msg.created_at,
-        sender_id: msg.sender_id,
+        created_at: msg.created_at || new Date().toISOString(),
+        sender_id: actualSenderId,
       };
-    });
+    }));
 
     return NextResponse.json({ 
       messages: transformedMessages
@@ -130,42 +143,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mendapatkan nama display pengguna dari cleanliness_reports_with_user
-    let displayName = "Unknown User";
-    
-    try {
-      // Cari nama user dari cleanliness_reports_with_user berdasarkan reporter (user.id)
-      const { data: userInfo, error: userError } = await supabase
-        .from("cleanliness_reports_with_user")
-        .select("reporter_name, email")
-        .eq("reporter", user.id)
-        .limit(1)
-        .single();
-      
-      if (!userError && userInfo) {
-        displayName = userInfo.reporter_name || userInfo.email?.split('@')[0] || "Unknown User";
-      } else {
-        // Fallback: ambil dari user metadata
-        const userMetadata = user.user_metadata || {};
-        
-        if (userMetadata.full_name) {
-          displayName = userMetadata.full_name;
-        } else if (userMetadata.name) {
-          displayName = userMetadata.name;
-        } else if (user.email) {
-          // Fallback: gunakan bagian email sebelum @
-          displayName = user.email.split('@')[0];
-        }
-      }
-    } catch (error) {
-      console.log("Failed to get user display name", error);
-      // Fallback terakhir
-      if (user.email) {
-        displayName = user.email.split('@')[0];
-      }
-    }
-
     // Transform data untuk format yang diharapkan komponen frontend
+    // Langsung gunakan metadata user untuk nama
+    const displayName = user.user_metadata?.full_name || 
+                       user.email?.split('@')[0] || 
+                       `User ${user.id.slice(-8)}`;
+    
     const transformedMessage = {
       id: result.id.toString(),
       content: result.message,
