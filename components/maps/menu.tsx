@@ -4,9 +4,12 @@ import React from "react";
 import Dropdown from "../common/dropdown";
 import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
+import { useModalStore } from "@/lib/store/modal-store";
 
 const MenuDropdown: React.FC = ({}) => {
   const router = useRouter();
+  const setDailyMissionOpen = useModalStore((s) => s.setDailyMissionOpen);
+
   const dropdownItems = [
     {
       id: "grading",
@@ -22,6 +25,11 @@ const MenuDropdown: React.FC = ({}) => {
       id: "tukar-poin",
       label: "Tukar Poin",
       onClick: () => router.push("tukar-poin"),
+    },
+    {
+      id: "misi-harian",
+      label: "Misi Harian",
+      onClick: () => setDailyMissionOpen(true), // <-- trigger modal
     },
   ];
 
