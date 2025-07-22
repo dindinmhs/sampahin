@@ -49,6 +49,7 @@ export const ChatSidebar = ({
     };
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isSubscribedRef = useRef(false);
   const supabase = createClient();
 
   /**
@@ -84,7 +85,8 @@ export const ChatSidebar = ({
       }
 
       // Data messages sudah termasuk sender_name dari view
-      setMessages(data.messages || []);
+      const fetchedMessages = data.messages || [];
+      setMessages(fetchedMessages);
     } catch (err) {
       setError("Gagal memuat pesan");
       console.error("Error fetching messages:", err);
@@ -123,8 +125,8 @@ export const ChatSidebar = ({
       }
 
       if (data.message) {
-        // Tambahkan pesan ke state lokal
-        setMessages(prev => [...prev, data.message]);
+        // JANGAN tambahkan ke state lokal - biarkan realtime yang handle
+        // Ini mencegah duplikasi di production
         setNewMessage("");
       } else {
         setError("Pesan terkirim tapi tidak ada data response");
@@ -140,8 +142,9 @@ export const ChatSidebar = ({
    * Load pesan saat komponen dibuka dan setup realtime subscription
    */
   useEffect(() => {
-    if (isOpen && reportId) {
+    if (isOpen && reportId && !isSubscribedRef.current) {
       fetchMessages();
+      isSubscribedRef.current = true;
 
       // Setup realtime subscription sederhana
       const channel = supabase
@@ -196,7 +199,7 @@ export const ChatSidebar = ({
                 sender_id: payload.new.sender_id,
               };
 
-              // Cek apakah pesan sudah ada untuk menghindari duplikat
+              // Cek apakah pesan sudah ada dan tambahkan jika belum
               setMessages(prev => {
                 const exists = prev.some(msg => msg.id === transformedMessage.id);
                 if (!exists) {
@@ -216,7 +219,13 @@ export const ChatSidebar = ({
       // Cleanup subscription saat komponen unmount atau chat ditutup
       return () => {
         supabase.removeChannel(channel);
+        isSubscribedRef.current = false;
       };
+    }
+    
+    // Reset subscription flag when chat is closed
+    if (!isOpen) {
+      isSubscribedRef.current = false;
     }
   }, [isOpen, reportId, fetchMessages, supabase, user]);
 
