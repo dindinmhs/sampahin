@@ -25,9 +25,6 @@ export async function GET(request: NextRequest) {
       .eq("report_id", reportId)
       .order("created_at", { ascending: true });
 
-    // Get current user untuk menentukan apakah pesan dari user sendiri
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-
     // Jika tidak ditemukan dan reportId seperti UUID, coba partial match
     if ((!messages || messages.length === 0) && reportId.length > 10) {
       const { data: partialMessages, error: partialError } = await supabase
