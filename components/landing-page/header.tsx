@@ -27,7 +27,6 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
     { href: "#beranda", label: "Beranda" },
     { href: "#features", label: "Fitur" },
     { href: "#how-it-works", label: "Cara Kerja" },
-    { href: "#contact", label: "Kontak" },
   ];
 
   return (
