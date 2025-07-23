@@ -77,19 +77,30 @@ interface RoutingMachineProps {
   startPosition: [number, number] | null;
   endPosition: [number, number] | null;
   isNavigating: boolean;
+  onOpenGoogleMaps?: (start: [number, number], end: [number, number]) => void;
 }
 
 const RoutingMachine: React.FC<RoutingMachineProps> = ({
   startPosition,
   endPosition,
   isNavigating,
+  onOpenGoogleMaps,
 }) => {
   const map = useMap();
   const routingControlRef = useRef<RoutingControl | null>(null);
   const isInitializedRef = useRef(false);
+  const setupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Detect mobile device
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   // Fungsi untuk membersihkan routing control dengan aman
   const cleanupRoutingControl = useCallback(() => {
+    if (setupTimeoutRef.current) {
+      clearTimeout(setupTimeoutRef.current);
+      setupTimeoutRef.current = null;
+    }
+
     if (routingControlRef.current && map) {
       try {
         // Hapus semua layer routing terlebih dahulu
@@ -116,9 +127,21 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
   }, [map]);
 
   useEffect(() => {
+    // Clear any existing timeout first
+    if (setupTimeoutRef.current) {
+      clearTimeout(setupTimeoutRef.current);
+      setupTimeoutRef.current = null;
+    }
+
     if (!map || !isNavigating || !startPosition || !endPosition) {
       // Cleanup existing routing control if navigation is turned off
       cleanupRoutingControl();
+      return;
+    }
+
+    // Prevent multiple initializations
+    if (isInitializedRef.current && routingControlRef.current) {
+      console.log("Routing already initialized, skipping...");
       return;
     }
 
@@ -149,10 +172,17 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
     // Remove existing routing control if it exists
     cleanupRoutingControl();
 
-    // Add a small delay to ensure map is ready
-    const timer = setTimeout(() => {
+    // Add delay with mobile optimization - longer delay for mobile to ensure stability
+    setupTimeoutRef.current = setTimeout(() => {
+      // Double check conditions after timeout
+      if (!map || !isNavigating || !startPosition || !endPosition) {
+        return;
+      }
+
       try {
-        // Create new routing control
+        console.log('Setting up routing from:', startPosition, 'to:', endPosition, 'Mobile:', isMobile);
+        
+        // Create new routing control with mobile optimizations
         const routingControl = L.Routing.control({
           waypoints: [
             L.latLng(startPosition[0], startPosition[1]),
@@ -161,17 +191,21 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
           routeWhileDragging: false,
           showAlternatives: false,
           fitSelectedRoutes: true,
-          show: false,
+          show: false, // Always hide instruction panel
           createMarker: function () {
             return null; // Don't create default markers
           },
           lineOptions: {
-            styles: [{ color: "#0A59CF", weight: 4, opacity: 0.7 }],
+            styles: [{ 
+              color: "#0A59CF", 
+              weight: isMobile ? 6 : 5, // Thicker line on mobile
+              opacity: isMobile ? 0.9 : 0.8 
+            }],
           },
           router: L.Routing.osrmv1({
             serviceUrl: "https://router.project-osrm.org/route/v1",
             profile: "driving",
-            timeout: 15000,
+            timeout: isMobile ? 30000 : 20000, // Longer timeout for mobile
           }),
           addWaypoints: false, // Prevent adding waypoints on click
           draggableWaypoints: false, // Prevent dragging waypoints
@@ -183,17 +217,32 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
             const routes = e.routes;
             if (routes && routes.length > 0) {
               const summary = routes[0].summary;
+              const distance = (summary.totalDistance / 1000).toFixed(1); // km
+              const time = Math.round(summary.totalTime / 60); // minutes
+              
               console.log("Route found:", {
-                distance: summary.totalDistance,
-                time: summary.totalTime,
+                distance: `${distance} km`,
+                time: `${time} menit`,
               });
 
-              // Fit bounds with padding
+              // Fit bounds with mobile-optimized padding
               if (routes[0].bounds) {
                 map.fitBounds(routes[0].bounds, {
-                  padding: [30, 30],
-                  maxZoom: 16,
+                  padding: isMobile ? [20, 20] : [30, 30],
+                  maxZoom: isMobile ? 15 : 16,
                 });
+              }
+
+              // Force map invalidation on mobile for stability
+              if (isMobile) {
+                setTimeout(() => {
+                  map.invalidateSize();
+                }, 100);
+              }
+
+              // Show Google Maps option when route is found
+              if (onOpenGoogleMaps) {
+                onOpenGoogleMaps(startPosition, endPosition);
               }
             }
           } catch (error) {
@@ -207,6 +256,10 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
           if (e.error && e.error.message) {
             console.warn("Routing service error:", e.error.message);
           }
+          // Fallback: show Google Maps option even if routing fails
+          if (onOpenGoogleMaps) {
+            onOpenGoogleMaps(startPosition, endPosition);
+          }
         });
 
         routingControl.on("routingstart", function () {
@@ -218,22 +271,30 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
           console.error("Routing control error:", e);
         });
 
-        // Add to map with error handling
+        // Add to map with mobile-specific error handling
         if (map && routingControl) {
-          routingControl.addTo(map);
-          routingControlRef.current = routingControl;
-          isInitializedRef.current = true;
+          try {
+            routingControl.addTo(map);
+            routingControlRef.current = routingControl;
+            isInitializedRef.current = true;
+            console.log("Routing control added successfully");
+          } catch (addError) {
+            console.error("Error adding routing control to map:", addError);
+          }
         }
       } catch (error) {
         console.error("Error creating routing control:", error);
       }
-    }, 100);
+    }, isMobile ? 800 : 400); // Much longer delay for mobile stability
 
     // Cleanup function
     return () => {
-      clearTimeout(timer);
+      if (setupTimeoutRef.current) {
+        clearTimeout(setupTimeoutRef.current);
+        setupTimeoutRef.current = null;
+      }
     };
-  }, [map, startPosition, endPosition, isNavigating, cleanupRoutingControl]);
+  }, [map, startPosition, endPosition, isNavigating, cleanupRoutingControl, onOpenGoogleMaps, isMobile]);
 
   // Cleanup effect when component unmounts
   useEffect(() => {
@@ -241,6 +302,37 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
       cleanupRoutingControl();
     };
   }, [cleanupRoutingControl]);
+
+  // Handle mobile orientation changes and resize events
+  useEffect(() => {
+    if (!isMobile || !map) return;
+
+    const handleResize = () => {
+      setTimeout(() => {
+        if (map && routingControlRef.current) {
+          map.invalidateSize();
+          console.log("Map size invalidated due to resize");
+        }
+      }, 100);
+    };
+
+    const handleOrientationChange = () => {
+      setTimeout(() => {
+        if (map && routingControlRef.current) {
+          map.invalidateSize();
+          console.log("Map size invalidated due to orientation change");
+        }
+      }, 500);
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, [map, isMobile]);
 
   return null;
 };

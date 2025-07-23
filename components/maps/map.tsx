@@ -1,6 +1,6 @@
 "use client";
 // map.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   MapContainer,
@@ -112,6 +112,9 @@ const Maps = () => {
 
   // Tambahkan state untuk chat forum
   const [isChatOpen, setIsChatOpen] = useState(false);
+  
+  // State untuk Google Maps
+  const [showGoogleMapsOption, setShowGoogleMapsOption] = useState(false);
 
   useEffect(() => {
     const getLocations = async () => {
@@ -259,7 +262,19 @@ const Maps = () => {
   const handleCancelNavigation = () => {
     setIsNavigating(false);
     setNavigationTarget(null);
+    setShowGoogleMapsOption(false);
   };
+
+  // Fungsi untuk membuka Google Maps
+  const handleOpenGoogleMaps = useCallback((start: [number, number], end: [number, number]) => {
+    const googleMapsUrl = `https://www.google.com/maps/dir/${start[0]},${start[1]}/${end[0]},${end[1]}`;
+    window.open(googleMapsUrl, '_blank');
+  }, []);
+
+  // Handler untuk menampilkan opsi Google Maps
+  const handleShowGoogleMapsOption = useCallback(() => {
+    setShowGoogleMapsOption(true);
+  }, []);
 
   const handleSearchSelect = (loc: LocationType) => {
     setSelectedLocation(loc);
@@ -319,7 +334,18 @@ const Maps = () => {
 
       {/* Tombol Batalkan Navigasi di bawah tengah */}
       {isNavigating && (
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[1000]">
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[1000] flex flex-col items-center space-y-3">
+          {/* Tombol Google Maps - tampil setelah route ditemukan */}
+          {showGoogleMapsOption && userLocation && navigationTarget && (
+            <button
+              onClick={() => handleOpenGoogleMaps(userLocation, [navigationTarget.lan, navigationTarget.lat])}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors flex items-center justify-center space-x-2 shadow-lg"
+            >
+              <span>Buka di Google Maps</span>
+            </button>
+          )}
+          
+          {/* Tombol Batalkan Navigasi */}
           <button
             onClick={handleCancelNavigation}
             className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors flex items-center justify-center space-x-2 shadow-lg"
@@ -406,6 +432,7 @@ const Maps = () => {
             startPosition={userLocation}
             endPosition={[navigationTarget.lan, navigationTarget.lat]}
             isNavigating={isNavigating}
+            onOpenGoogleMaps={handleShowGoogleMapsOption}
           />
         )}
       </MapContainer>
