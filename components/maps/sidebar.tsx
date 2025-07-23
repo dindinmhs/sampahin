@@ -331,23 +331,7 @@ export const MapSidebar = ({
         </div>
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3 mb-6">
-          {/* Tombol Lapor hijau - hanya muncul jika tidak sedang membersihkan */}
-          {!isCleaning && (
-            <button
-              onClick={handleReportClick}
-              className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <span>Lapor</span>
-            </button>
-          )}
-          {/* Tombol Lapor hijau - muncul saat sedang membersihkan */}
+          {/* Tombol Lapor hijau - hanya muncul jika user sedang membersihkan */}
           {isCleaning && userIsCleaning && (
             <button
               onClick={handleReportClick}
@@ -360,9 +344,10 @@ export const MapSidebar = ({
                   clipRule="evenodd"
                 />
               </svg>
-              <span>Lapor</span>
+              <span>Selesai & Lapor</span>
             </button>
           )}
+          {/* Hapus kondisi !isCleaning untuk tombol Lapor biru */}
           <button
             onClick={handleNavigateClick}
             disabled={isNavigating}
