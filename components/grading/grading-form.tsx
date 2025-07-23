@@ -402,50 +402,52 @@ export const GradingForm = () => {
               </h3>
               <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
                 <div className="space-y-2">
-                  <div className="flex justify-start gap-8">
-                    <div className="flex flex-col justify-center items-center">
-                      <span className="font-medium">Skor Kebersihan:</span>
-                      <span
-                        className={`font-bold px-2 py-1 rounded text-4xl ${
-                          analysisResult.grade === "A"
-                            ? "text-green-500"
-                            : analysisResult.grade === "B"
-                            ? "text-blue-500"
-                            : analysisResult.grade === "C"
-                            ? "text-yellow-500"
-                            : analysisResult.grade === "D"
-                            ? "text-orange-600"
-                            : analysisResult.grade === "E"
-                            ? "text-red-500"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {analysisResult.skor_kebersihan ?? "Tidak tersedia"}
-                      </span>
+                  {/* Only show score and grade if it's a valid grading result */}
+                  {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
+                    <div className="flex justify-start gap-8">
+                      <div className="flex flex-col justify-center items-center">
+                        <span className="font-medium">Skor Kebersihan:</span>
+                        <span
+                          className={`font-bold px-2 py-1 rounded text-4xl ${
+                            analysisResult.grade === "A"
+                              ? "text-green-500"
+                              : analysisResult.grade === "B"
+                              ? "text-blue-500"
+                              : analysisResult.grade === "C"
+                              ? "text-yellow-500"
+                              : analysisResult.grade === "D"
+                              ? "text-orange-600"
+                              : analysisResult.grade === "E"
+                              ? "text-red-500"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {analysisResult.skor_kebersihan}
+                        </span>
+                      </div>
+                      <div className="flex flex-col justify-center items-center">
+                        <span className="font-medium">Grade:</span>
+                        <span
+                          className={`font-bold px-2 py-1 rounded text-4xl ${
+                            analysisResult.grade === "A"
+                              ? "text-green-500"
+                              : analysisResult.grade === "B"
+                              ? "text-blue-500"
+                              : analysisResult.grade === "C"
+                              ? "text-yellow-500"
+                              : analysisResult.grade === "D"
+                              ? "text-orange-600"
+                              : analysisResult.grade === "E"
+                              ? "text-red-500"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {analysisResult.grade}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-col justify-center items-center">
-                      <span className="font-medium">Grade:</span>
-                      <span
-                        className={`font-bold px-2 py-1 rounded text-4xl ${
-                          analysisResult.grade === "A"
-                            ? "text-green-500"
-                            : analysisResult.grade === "B"
-                            ? "text-blue-500"
-                            : analysisResult.grade === "C"
-                            ? "text-yellow-500"
-                            : analysisResult.grade === "D"
-                            ? "text-orange-600"
-                            : analysisResult.grade === "E"
-                            ? "text-red-500"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {analysisResult.grade ?? "Tidak tersedia"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-gray-200">
-                    <p className="font-medium mb-1">Deskripsi:</p>
+                  )}
+                  <div className={analysisResult.skor_kebersihan !== null && analysisResult.grade !== null ? "mt-3 pt-2 border-t border-gray-200" : ""}>
                     <p className="text-gray-600 leading-relaxed">
                       {analysisResult.deskripsi ?? "Tidak tersedia"}
                     </p>
@@ -459,13 +461,31 @@ export const GradingForm = () => {
         {/* Analysis/Share Button */}
         <div className="mt-4">
           {analysisResult ? (
-            <Button
-              onClick={() => setOpen(true)}
-              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-              // Ubah kondisi untuk memungkinkan pembagian lokasi dengan grade A atau B
-            >
-              Bagikan
-            </Button>
+            <>
+              {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null ? (
+                // Valid grading result - show share button
+                <Button
+                  onClick={() => setOpen(true)}
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
+                >
+                  Bagikan
+                </Button>
+              ) : (
+                // Not a grading image - show "Coba Gambar Lain" button
+                <div className="text-center">
+                  <Button
+                    onClick={() => {
+                      removeImage();
+                      setAnalysisResult(null);
+                    }}
+                    variant="outline"
+                    className="w-full py-3 text-sm font-medium rounded-full"
+                  >
+                    Coba Gambar Lain
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <Button
               onClick={handleAnalysis}
@@ -480,7 +500,7 @@ export const GradingForm = () => {
         {/* Hidden canvas for photo capture */}
         <canvas ref={canvasRef} className="hidden" />
 
-        {selectedImage && (
+        {selectedImage && analysisResult && analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
           <GradeShareForm
             selectedImage={selectedImage}
             analysis_result={analysisResult}

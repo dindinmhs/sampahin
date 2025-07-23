@@ -12,6 +12,7 @@ export const ScanForm = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [isNotTrash, setIsNotTrash] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
@@ -27,6 +28,7 @@ export const ScanForm = () => {
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       setAnalysisResult(null);
+      setIsNotTrash(false);
     }
   };
 
@@ -178,6 +180,7 @@ export const ScanForm = () => {
               setSelectedImage(file);
               setPreviewUrl(URL.createObjectURL(file));
               setAnalysisResult(null);
+              setIsNotTrash(false);
               stopCamera();
             }
           },
@@ -205,6 +208,7 @@ export const ScanForm = () => {
     }
     setPreviewUrl(null);
     setAnalysisResult(null);
+    setIsNotTrash(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -246,12 +250,15 @@ export const ScanForm = () => {
       const data = await res.json();
       if (data.result) {
         setAnalysisResult(data.result);
+        setIsNotTrash(data.isNotTrash || false);
       } else {
         setAnalysisResult("Gagal menganalisis gambar.");
+        setIsNotTrash(false);
       }
     } catch (err) {
       console.error("Analysis error:", err);
       setAnalysisResult("Terjadi kesalahan saat analisis. Silakan coba lagi.");
+      setIsNotTrash(false);
     } finally {
       setIsAnalyzing(false);
       const fetchMissions = async () => {
@@ -408,13 +415,43 @@ export const ScanForm = () => {
 
         {/* Analysis Button */}
         <div className="mt-4">
-          <Button
-            onClick={handleAnalysis}
-            disabled={!selectedImage || isAnalyzing}
-            className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-          >
-            {isAnalyzing ? "Menganalisis..." : "Analisis"}
-          </Button>
+          {analysisResult ? (
+            <>
+              {isNotTrash ? (
+                // Objek bukan sampah - show "Coba Gambar Lain" button
+                <Button
+                  onClick={() => {
+                    removeImage();
+                    setAnalysisResult(null);
+                  }}
+                  variant="outline"
+                  className="w-full py-3 text-sm font-medium rounded-full"
+                >
+                  Coba Gambar Lain
+                </Button>
+              ) : (
+                // Valid trash analysis - show normal analysis button
+                <Button
+                  onClick={() => {
+                    removeImage();
+                    setAnalysisResult(null);
+                  }}
+                  variant="outline"
+                  className="w-full py-3 text-sm font-medium rounded-full"
+                >
+                  Analisis Gambar Lain
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button
+              onClick={handleAnalysis}
+              disabled={!selectedImage || isAnalyzing}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
+            >
+              {isAnalyzing ? "Menganalisis..." : "Analisis"}
+            </Button>
+          )}
         </div>
 
         {/* Hidden canvas for photo capture */}

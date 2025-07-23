@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
             },
           },
           {
-            text: `analisis dengan template jawaban
+            text: `tolong cek terlebih dahulu apakah gambar yang dikirim adalah sampah / barang daur ulang (seperti botol, kertas, plastik, dll) atau bukan, jika bukan maka jawab "Objek bukanlah sampah" 
+analisis dengan template jawaban
 nama objek : 
 kategori : (organik/anorganik/b3)
 status bahaya :
@@ -48,8 +49,29 @@ tolong jawab langsung ke nama objek saja jangan format markdown`,
       contents,
     });
 
-    return NextResponse.json({ result : response.text });
+    if (response.text) {
+      const text = response.text;
+      
+      // Cek jika AI mengatakan objek bukan sampah
+      const isNotTrash = text.toLowerCase().includes("objek bukanlah sampah") || 
+                        text.toLowerCase().includes("bukan sampah") ||
+                        text.toLowerCase().includes("tidak berkaitan dengan sampah");
+
+      return NextResponse.json({ 
+        result: text,
+        isNotTrash: isNotTrash
+      });
+    } else {
+      return NextResponse.json({ 
+        result: "AI tidak memberikan response yang valid",
+        isNotTrash: false
+      });
+    }
   } catch (err) {
-    return NextResponse.json({ error: err?.toString() }, { status: 500 });
+    console.error("API Error:", err);
+    return NextResponse.json({ 
+      result: "Terjadi kesalahan saat menganalisis gambar",
+      isNotTrash: false
+    }, { status: 500 });
   }
 }
