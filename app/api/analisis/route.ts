@@ -30,8 +30,12 @@ export async function POST(req: NextRequest) {
             },
           },
           {
-            text: `tolong cek terlebih dahulu apakah gambar yang dikirim adalah sampah / barang daur ulang (seperti botol, kertas, plastik, dll) atau bukan, jika bukan maka jawab "Objek bukanlah sampah" 
-analisis dengan template jawaban
+            text: `Analisis gambar ini untuk objek berupa sampah atau bukan.
+
+PENTING: Jika gambar yang dikirim TIDAK BERKAITAN dengan objek sampah, maka jawab:
+"Objek bukanlah sampah"
+
+Jika gambar berkaitan dengan sampah, berikan penilaian dengan format berikut:
 nama objek : 
 kategori : (organik/anorganik/b3)
 status bahaya :
