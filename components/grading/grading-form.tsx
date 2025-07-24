@@ -321,6 +321,7 @@ export const GradingForm = () => {
               accept="image/*"
               onChange={handleFileSelect}
               className="hidden"
+              aria-label="Upload image file"
             />
           </div>
 
@@ -539,6 +540,17 @@ const GradeShareForm = ({
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
+    // Validasi form
+    if (!form.nama.trim()) {
+      alert("Nama harus diisi!");
+      return;
+    }
+    
+    if (!form.alamat.trim()) {
+      alert("Alamat harus diisi!");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -593,9 +605,15 @@ const GradeShareForm = ({
         .select();
 
       if (cleanlinessRes.error) throw cleanlinessRes.error;
-      if (cleanlinessRes.data) setOpen(false);
+      
+      if (cleanlinessRes.data) {
+        setOpen(false);
+        // Redirect ke /map setelah berhasil submit
+        window.location.href = "/map";
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
+      alert("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -607,7 +625,7 @@ const GradeShareForm = ({
         <div className="flex flex-col gap-4">
           <div>
             <Label htmlFor="nama" className="text-sm font-medium text-gray-700">
-              Nama
+              Nama <span className="text-red-500">*</span>
             </Label>
             <Input
               id="nama"
@@ -624,7 +642,7 @@ const GradeShareForm = ({
               htmlFor="alamat"
               className="text-sm font-medium text-gray-700"
             >
-              Alamat
+              Alamat <span className="text-red-500">*</span>
             </Label>
             <Input
               id="alamat"
@@ -650,7 +668,16 @@ const GradeShareForm = ({
                 Batal
               </Button>
             )}
-            <Button type="submit" disabled={loading} onClick={submit}>
+            <Button 
+              type="submit" 
+              disabled={loading || !form.nama.trim() || !form.alamat.trim()} 
+              onClick={submit}
+              className={`${
+                loading || !form.nama.trim() || !form.alamat.trim()
+                  ? "opacity-50 cursor-not-allowed" 
+                  : ""
+              }`}
+            >
               {loading ? "Membagikan..." : "Bagikan"}
             </Button>
           </div>
