@@ -307,63 +307,85 @@ export const UpdateGradingForm = () => {
         const safeName = location[0].name.replace(/\s+/g, "-").toLowerCase();
         const filePath = `locations/${safeName}_${Date.now()}${fileExt}`;
 
-        // 1. Ambil data lokasi lama dulu untuk dapat URL lama
-        const current = await supabase
-        .from("locations")
-        .select("img_url")
-        .eq("id", placeId)
-        .single();
-        
-        // 2. Hapus gambar lama jika ada
-        if (current.data?.img_url) {
-        const fullPath = current.data.img_url.split("/object/public/")[1]; 
-        const pathInBucket = fullPath.split("/").slice(1).join("/"); 
+        try {
+          // 1. Ambil data lokasi lama dulu untuk dapat URL lama
+          const current = await supabase
+          .from("locations")
+          .select("img_url")
+          .eq("id", placeId)
+          .single();
+          
+          // 2. Hapus gambar lama jika ada
+          if (current.data?.img_url) {
+            const fullPath = current.data.img_url.split("/object/public/")[1]; 
+            const pathInBucket = fullPath.split("/").slice(1).join("/"); 
 
-        await supabase.storage
-            .from("sampahin")
-            .remove([pathInBucket]);
+            await supabase.storage
+                .from("sampahin")
+                .remove([pathInBucket]);
+          }
+
+          // 3. Upload gambar baru
+          const storageRes = await supabase.storage
+          .from("sampahin")
+          .upload(filePath, selectedImage);
+          if (storageRes.error) throw storageRes.error;
+
+          // 4. Ambil URL publik
+          const {
+          data: { publicUrl },
+          } = await supabase.storage.from("sampahin").getPublicUrl(filePath);
+
+          // 5. Tentukan tipe lokasi berdasarkan grade
+          const locationType = 
+            analysisResult?.grade === "A" || analysisResult?.grade === "B" 
+              ? "clean" 
+              : "dirty";
+
+          // 6. Update lokasi dengan URL gambar baru dan tipe berdasarkan grade
+          const locationRes = await supabase
+          .from("locations")
+          .update([
+              {
+                img_url: publicUrl,
+                type: locationType // Update tipe lokasi berdasarkan grade
+              },
+          ])
+          .eq("id", placeId)
+          .select("id");
+
+          if (!locationRes.data) throw locationRes.error;
+
+          // 7. Tambahkan laporan kebersihan
+          const cleanlinessRes = await supabase
+          .from("cleanliness_reports")
+          .insert([
+              {
+              reporter: authRes.data.user?.id,
+              location: placeId,
+              score: analysisResult?.skor_kebersihan,
+              grade: analysisResult?.grade,
+              ai_description: analysisResult?.deskripsi,
+              },
+          ])
+          .select();
+
+          if (cleanlinessRes.error) throw cleanlinessRes.error;
+
+          // 8. Hapus semua pembersih dari location_cleaners karena lokasi sudah selesai dibersihkan
+          await supabase
+            .from("location_cleaners")
+            .delete()
+            .eq("location_id", placeId);
+
+          // Redirect ke halaman peta setelah berhasil
+          window.location.href = "/map";
+        } catch (error) {
+          console.error("Error updating report:", error);
+          alert("Terjadi kesalahan saat memperbarui laporan. Silakan coba lagi.");
+        } finally {
+          setLoading(false);
         }
-
-        // 3. Upload gambar baru
-        const storageRes = await supabase.storage
-        .from("sampahin")
-        .upload(filePath, selectedImage);
-        if (storageRes.error) throw storageRes.error;
-
-        // 4. Ambil URL publik
-        const {
-        data: { publicUrl },
-        } = await supabase.storage.from("sampahin").getPublicUrl(filePath);
-
-        // 5. Update lokasi dengan URL gambar baru
-        const locationRes = await supabase
-        .from("locations")
-        .update([
-            {
-            img_url: publicUrl,
-            },
-        ])
-        .eq("id", placeId)
-        .select("id");
-
-        if (!locationRes.data) throw locationRes.error;
-
-        // 6. Tambahkan laporan kebersihan
-        const cleanlinessRes = await supabase
-        .from("cleanliness_reports")
-        .insert([
-            {
-            reporter: authRes.data.user?.id,
-            location: placeId,
-            score: analysisResult?.skor_kebersihan,
-            grade: analysisResult?.grade,
-            ai_description: analysisResult?.deskripsi,
-            },
-        ])
-        .select();
-
-        if (cleanlinessRes.error) throw cleanlinessRes.error;
-        if (cleanlinessRes.data) setLoading(false);
     }
     };
 
@@ -560,9 +582,9 @@ export const UpdateGradingForm = () => {
             <Button
               onClick={updateReport}
               className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-              disabled={analysisResult?.grade !== "D" || isLoading}
+              disabled={isLoading}
             >
-              {isLoading?"Bagikan...":"Bagikan"}
+              {isLoading ? "Bagikan..." : "Bagikan Hasil Analisis"}  
             </Button>
           ) : (
             <Button

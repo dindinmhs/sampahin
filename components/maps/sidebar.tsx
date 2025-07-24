@@ -80,46 +80,78 @@ export const MapSidebar = ({
   );
 
   const handleStartCleaning = async () => {
-    const supabase = createClient();
-    // Update type location jadi cleaning
-    await supabase
-      .from("locations")
-      .update({ type: "cleaning" })
-      .eq("id", location?.id);
+    try {
+      const supabase = createClient();
+      // Update type location jadi cleaning
+      await supabase
+        .from("locations")
+        .update({ type: "cleaning" })
+        .eq("id", location?.id);
 
-    // Tambah ke location_cleaners
-    await supabase.from("location_cleaners").insert({
-      user_id: user?.id,
-      location_id: location?.id,
-    });
+      // Tambah ke location_cleaners
+      await supabase.from("location_cleaners").insert({
+        user_id: user?.id,
+        location_id: location?.id,
+      });
 
-    // Tidak perlu refresh state karena akan diupdate oleh subscription
+      // Refresh halaman untuk memperbarui UI
+      window.location.reload();
+    } catch (error) {
+      console.error("Error starting cleaning:", error);
+      alert("Terjadi kesalahan saat memulai pembersihan. Silakan coba lagi.");
+    }
   };
 
   const handleCancelCleaning = async () => {
-    const supabase = createClient();
-    // Hapus dari location_cleaners
-    await supabase
-      .from("location_cleaners")
-      .delete()
-      .eq("user_id", user?.id)
-      .eq("location_id", location?.id);
-
-    // Jika tidak ada pembersih, update type location jadi dirty
-    const { data: cleaners } = await supabase
-      .from("location_cleaners")
-      .select("*")
-      .eq("location_id", location?.id);
-
-    if (!cleaners || cleaners.length === 0) {
+    try {
+      const supabase = createClient();
+      // Hapus dari location_cleaners
       await supabase
-        .from("locations")
-        .update({ type: "dirty" })
-        .eq("id", location?.id);
-    }
+        .from("location_cleaners")
+        .delete()
+        .eq("user_id", user?.id)
+        .eq("location_id", location?.id);
 
-    // Refresh data
-    // ...refresh state...
+      // Jika tidak ada pembersih, update type location jadi dirty
+      const { data: cleaners } = await supabase
+        .from("location_cleaners")
+        .select("*")
+        .eq("location_id", location?.id);
+
+      if (!cleaners || cleaners.length === 0) {
+        await supabase
+          .from("locations")
+          .update({ type: "dirty" })
+          .eq("id", location?.id);
+      }
+
+      // Refresh halaman untuk memperbarui UI
+      window.location.reload();
+    } catch (error) {
+      console.error("Error canceling cleaning:", error);
+      alert(
+        "Terjadi kesalahan saat membatalkan pembersihan. Silakan coba lagi."
+      );
+    }
+  };
+
+  const handleReport = async () => {
+    // Redirect ke halaman grading untuk lokasi ini
+    router.push(`/grading/${location.id}`);
+  };
+
+  // Fungsi untuk menentukan apakah lokasi bersih berdasarkan grade
+  const isCleanLocation = () => {
+    return (
+      latestReport && (latestReport.grade === "A" || latestReport.grade === "B")
+    );
+  };
+
+  // Fungsi untuk menentukan apakah lokasi kotor berdasarkan grade
+  const isDirtyLocation = () => {
+    return (
+      latestReport && (latestReport.grade === "C" || latestReport.grade === "D")
+    );
   };
 
   const isDirty = location.type === "dirty";
@@ -313,68 +345,145 @@ export const MapSidebar = ({
             </p>
           </div>
         )}
-        <div className="mb-4 flex items-center">
-          {cleaners.slice(0, 5).map((c) => (
-            <Avatar
-              key={c.user_id}
-              displayName={c.cleaner_name || "Anonim"}
-              // src={c.user?.avatar_url}
-              size="sm"
-              className="-ml-2 border-2 border-white"
-            />
-          ))}
-          {cleaners.length > 5 && (
-            <span className="ml-2 text-xs bg-gray-200 rounded-full px-2 py-1">
-              +{cleaners.length - 5}
-            </span>
-          )}
-        </div>
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {/* Tombol Lapor hijau - hanya muncul jika user sedang membersihkan */}
-          {isCleaning && userIsCleaning && (
+
+        {/* Active Cleaners */}
+        {cleaners.length > 0 && (
+          <div className="mb-6">
+            <h4 className="font-semibold text-gray-700 mb-3 text-sm">
+              Sedang Membersihkan ({cleaners.length})
+            </h4>
+            <div className="flex items-center">
+              {cleaners.slice(0, 5).map((c) => (
+                <Avatar
+                  key={c.user_id}
+                  displayName={c.cleaner_name || "Anonim"}
+                  size="sm"
+                  className="-ml-2 border-2 border-white first:ml-0"
+                />
+              ))}
+              {cleaners.length > 5 && (
+                <span className="ml-2 text-xs bg-gray-200 rounded-full px-2 py-1">
+                  +{cleaners.length - 5}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons Section */}
+        <div className="space-y-4">
+          {/* Navigation & Report Section */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Navigation Button */}
             <button
-              onClick={handleReportClick}
-              className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+              onClick={handleNavigateClick}
+              disabled={isNavigating}
+              className={`${
+                isNavigating
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              } text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2`}
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
+                  d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z"
+                  clipRule="evenodd"
+                />
+                <path
+                  fillRule="evenodd"
+                  d="M3 10a1 1 0 011-1h10a1 1 0 110 2H4a1 1 0 01-1-1z"
                   clipRule="evenodd"
                 />
               </svg>
-              <span>Selesai & Lapor</span>
+              <span>{isNavigating ? "Navigasi Aktif" : "Navigasi"}</span>
+            </button>
+
+            {/* Report Dirty Button - hanya untuk lokasi bersih */}
+            {isCleanLocation() ? (
+              <button
+                onClick={handleReportClick}
+                className="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+                title="Laporkan jika tempat ini kotor"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span>Lapor Kotor</span>
+              </button>
+            ) : (
+              <div className="bg-gray-100 rounded-xl p-3 text-xs text-gray-500 flex items-center justify-center text-center">
+                <span>Lokasi sudah dilaporkan kotor</span>
+              </div>
+            )}
+          </div>
+
+          {/* Cleaning Actions Section */}
+          {isDirty && userIsNearby && !userIsCleaning && (
+            <button
+              onClick={handleStartCleaning}
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <span>Mulai Bersihkan</span>
             </button>
           )}
-          {/* Hapus kondisi !isCleaning untuk tombol Lapor biru */}
-          <button
-            onClick={handleNavigateClick}
-            disabled={isNavigating}
-            className={`${
-              isNavigating
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700"
-            } text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2`}
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z"
-                clipRule="evenodd"
-              />
-              <path
-                fillRule="evenodd"
-                d="M3 10a1 1 0 011-1h10a1 1 0 110 2H4a1 1 0 01-1-1z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span>{isNavigating ? "Navigasi Aktif" : "Navigasi"}</span>
-          </button>
-        </div>
 
-        {/* Chat Button */}
-        <div className="mb-6">
+          {/* User is cleaning - show actions */}
+          {isCleaning && userIsCleaning && (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleReport}
+                className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span>Selesai & Lapor</span>
+              </button>
+              <button
+                onClick={handleCancelCleaning}
+                className="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span>Batal</span>
+              </button>
+            </div>
+          )}
+
+          {/* Chat Community Button */}
           <button
             onClick={handleChatClick}
             disabled={!latestReport}
@@ -392,25 +501,17 @@ export const MapSidebar = ({
               />
             </svg>
             <span>
-              {latestReport ? "Buka Chat Komunitas" : "Chat Tidak Tersedia"}
+              {latestReport ? "Chat Komunitas" : "Chat Tidak Tersedia"}
             </span>
           </button>
-          {isDirty && userIsNearby && !isCleaning && (
-            <button
-              onClick={handleStartCleaning}
-              className="mt-3 w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-            >
-              <span>Bersihkan</span>
-            </button>
-          )}
-          {/* Hapus tombol Lapor biru */}
-          {isCleaning && userIsCleaning && (
-            <button
-              onClick={handleCancelCleaning}
-              className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-            >
-              <span>Batal Bersihkan</span>
-            </button>
+
+          {/* Status Information */}
+          {!userIsNearby && isDirty && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center">
+              <p className="text-sm text-yellow-700">
+                Anda perlu berada dalam radius 100m untuk memulai pembersihan
+              </p>
+            </div>
           )}
         </div>
       </div>

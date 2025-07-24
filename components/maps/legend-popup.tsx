@@ -26,7 +26,7 @@ const LegendPopup: React.FC<LegendPopupProps> = ({ isOpen, onClose }) => {
         <div className="flex justify-center items-end space-x-12 mt-2">
           {/* Kotor */}
           <div className="flex flex-col items-center text-center">
-            <div className="w-14 h-14 rounded-full border border-black flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center">
               <Image
                 src="/dirty.png"
                 alt="Kotor"
@@ -42,7 +42,7 @@ const LegendPopup: React.FC<LegendPopupProps> = ({ isOpen, onClose }) => {
 
           {/* Dalam Pembersihan */}
           <div className="flex flex-col items-center text-center">
-            <div className="w-14 h-14 rounded-full border border-black flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center">
               <Image
                 src="/cleaning.png"
                 alt="Dalam Pembersihan"
@@ -60,7 +60,7 @@ const LegendPopup: React.FC<LegendPopupProps> = ({ isOpen, onClose }) => {
 
           {/* Bersih */}
           <div className="flex flex-col items-center text-center">
-            <div className="w-14 h-14 rounded-full border border-black flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center">
               <Image
                 src="/clean.png"
                 alt="Bersih"

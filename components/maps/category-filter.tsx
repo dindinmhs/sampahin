@@ -1,4 +1,4 @@
-type Category = "all" | "clean" | "dirty";
+type Category = "all" | "clean" | "dirty" | "cleaning";
 
 interface Props {
   categoryFilter: Category;
@@ -38,6 +38,16 @@ const CategoryFilter = ({ categoryFilter, setCategoryFilter }: Props) => {
           }`}
         >
           Kotor
+        </button>
+        <button
+          onClick={() => setCategoryFilter("cleaning")}
+          className={`px-3 py-1.5 md:px-5 md:py-2 font-bold text-xs md:text-sm rounded-full shadow-sm ${
+            categoryFilter === "cleaning"
+              ? "bg-green-500 text-white"
+              : "bg-white text-gray-700"
+          }`}
+        >
+          Sedang Dibersihkan
         </button>
       </div>
     </div>

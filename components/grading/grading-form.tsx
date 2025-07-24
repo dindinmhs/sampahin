@@ -558,6 +558,12 @@ const GradeShareForm = ({
         data: { publicUrl },
       } = await supabase.storage.from("sampahin").getPublicUrl(filePath);
 
+      // Tentukan tipe berdasarkan grade
+      const locationType = 
+        analysis_result?.grade === "A" || analysis_result?.grade === "B"
+          ? "clean"
+          : "dirty";
+          
       const locationRes = await supabase
         .from("locations")
         .insert([
@@ -565,11 +571,7 @@ const GradeShareForm = ({
             name: form.nama,
             lan: form.coord[0],
             lat: form.coord[1],
-            // Tentukan tipe berdasarkan grade
-            type:
-              analysis_result?.grade === "A" || analysis_result?.grade === "B"
-                ? "clean"
-                : "dirty",
+            type: locationType,
             address: form.alamat,
             img_url: publicUrl,
           },

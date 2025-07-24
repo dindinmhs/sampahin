@@ -108,7 +108,7 @@ const Maps = () => {
   const [isLocationLoaded, setIsLocationLoaded] = useState(false);
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<
-    "all" | "clean" | "dirty"
+    "all" | "clean" | "dirty" | "cleaning"
   >("all");
   const [locationCleaners, setLocationCleaners] = useState<
     LocationCleanerType[]
@@ -132,35 +132,72 @@ const Maps = () => {
     setIsLegendOpen(false);
   };
 
+  // Fungsi untuk mengambil data lokasi dan laporan kebersihan
+  const getLocations = async () => {
+    const supabase = createClient();
+
+    const { data: locationsData, error: locationsError } = await supabase
+      .from("locations")
+      .select("id,lan,lat,type,name,address,created_at,img_url");
+
+    if (locationsError) {
+      console.error("Error fetching locations:", locationsError);
+      return;
+    }
+
+    const { data: reportsData, error: reportsError } = await supabase
+      .from("cleanliness_reports_with_user")
+      .select(
+        "id,reporter,score,grade,ai_description,created_at,location,reporter_name,email"
+      );
+
+    if (reportsError) {
+      console.error("Error fetching cleanliness reports:", reportsError);
+      return;
+    }
+
+    setLocations(locationsData || []);
+    setCleanlinessReports(reportsData || []);
+  };
+
+  // Mengambil data lokasi saat komponen dimuat
   useEffect(() => {
-    const getLocations = async () => {
-      const supabase = createClient();
-
-      const { data: locationsData, error: locationsError } = await supabase
-        .from("locations")
-        .select("id,lan,lat,type,name,address,created_at,img_url");
-
-      if (locationsError) {
-        console.error("Error fetching locations:", locationsError);
-        return;
-      }
-
-      const { data: reportsData, error: reportsError } = await supabase
-        .from("cleanliness_reports_with_user")
-        .select(
-          "id,reporter,score,grade,ai_description,created_at,location,reporter_name,email"
-        );
-
-      if (reportsError) {
-        console.error("Error fetching cleanliness reports:", reportsError);
-        return;
-      }
-
-      setLocations(locationsData || []);
-      setCleanlinessReports(reportsData || []);
-    };
-
     getLocations();
+
+    // Setup real-time subscription untuk memperbarui data lokasi
+    const supabase = createClient();
+
+    // Subscribe ke perubahan pada tabel locations
+    const locationsSubscription = supabase
+      .channel("locations-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "locations" },
+        () => {
+          // Refresh data saat ada perubahan
+          getLocations();
+        }
+      )
+      .subscribe();
+
+    // Subscribe ke perubahan pada tabel cleanliness_reports
+    const reportsSubscription = supabase
+      .channel("reports-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cleanliness_reports" },
+        () => {
+          // Refresh data saat ada perubahan
+          getLocations();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions
+    return () => {
+      supabase.removeChannel(locationsSubscription);
+      supabase.removeChannel(reportsSubscription);
+    };
   }, []);
 
   useEffect(() => {
@@ -192,98 +229,13 @@ const Maps = () => {
   useEffect(() => {
     const getLocationCleaners = async () => {
       const supabase = createClient();
-
-      // Ambil data awal
       const { data, error } = await supabase
         .from("location_cleaners_with_name")
         .select("id,location_id,user_id,cleaner_name");
-
       if (!error) setLocationCleaners(data || []);
-
-      // Subscribe ke perubahan pada tabel location_cleaners
-      const locationCleanersSubscription = supabase
-        .channel("location-cleaners-changes")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "location_cleaners" },
-          async (payload) => {
-            console.log("Location cleaner added:", payload);
-            // Dapatkan data cleaner baru dengan nama
-            const { data: newCleanerData, error: newCleanerError } =
-              await supabase
-                .from("location_cleaners_with_name")
-                .select("id,location_id,user_id,cleaner_name")
-                .eq("id", payload.new.id)
-                .single();
-
-            if (!newCleanerError && newCleanerData) {
-              // Tambahkan cleaner baru ke state tanpa mengambil semua data
-              setLocationCleaners((prev) => [...prev, newCleanerData]);
-            } else {
-              // Fallback jika gagal mendapatkan data baru
-              refreshAllCleaners();
-            }
-          }
-        )
-        .on(
-          "postgres_changes",
-          { event: "DELETE", schema: "public", table: "location_cleaners" },
-          async (payload) => {
-            console.log("Location cleaner removed:", payload);
-            // Hapus cleaner dari state tanpa mengambil semua data
-            setLocationCleaners((prev) =>
-              prev.filter((cleaner) => cleaner.id !== payload.old.id)
-            );
-          }
-        )
-        .subscribe();
-
-      // Fungsi untuk refresh semua data cleaner
-      const refreshAllCleaners = async () => {
-        const { data, error } = await supabase
-          .from("location_cleaners_with_name")
-          .select("id,location_id,user_id,cleaner_name");
-
-        if (!error) setLocationCleaners(data || []);
-      };
-
-      return () => {
-        locationCleanersSubscription.unsubscribe();
-      };
     };
-
     getLocationCleaners();
-  }, []); // Hapus dependency agar subscription tidak diulang saat sidebar dibuka/ditutup
-
-  useEffect(() => {
-    const supabase = createClient();
-
-    // Subscribe ke perubahan pada tabel locations
-    const locationsSubscription = supabase
-      .channel("locations-changes")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "locations" },
-        async (payload) => {
-          console.log("Location updated:", payload);
-
-          // Update state locations dengan data baru
-          setLocations((prevLocations) =>
-            prevLocations.map((loc) =>
-              loc.id === payload.new.id
-                ? { ...loc, ...payload.new } // Merge data baru
-                : loc
-            )
-          );
-        }
-      )
-      .subscribe();
-
-    // Cleanup subscription saat komponen unmount
-    return () => {
-      locationsSubscription.unsubscribe();
-    };
-  }, []);
+  }, [selectedLocation, isSidebarOpen]);
 
   const dirtyIcon = L.icon({
     iconUrl: "/dirty.png",
@@ -301,7 +253,6 @@ const Maps = () => {
     shadowUrl: undefined,
   });
 
-  // Tambahkan ikon cleaning
   const cleaningIcon = L.icon({
     iconUrl: "/cleaning.png",
     iconSize: [32, 32],
@@ -438,7 +389,7 @@ const Maps = () => {
         <SearchLocation onSelect={handleSearchSelect} />
       </div>
 
-      {/* Legend Button - posisi kanan atas */}
+      {/* Legend Button - posisi kanan bawah */}
       <div className="absolute bottom-24 right-2 z-[50]">
         <button
           onClick={handleOpenLegend}
@@ -523,8 +474,18 @@ const Maps = () => {
           const isClean = isCleanLocation(loc.id);
 
           // Filter berdasarkan kategori yang dipilih
-          if (categoryFilter === "clean" && !isClean) return null;
-          if (categoryFilter === "dirty" && isClean) return null;
+          if (
+            categoryFilter === "clean" &&
+            (!isClean || loc.type === "cleaning")
+          )
+            return null;
+          if (
+            categoryFilter === "dirty" &&
+            (isClean || loc.type === "cleaning")
+          )
+            return null;
+          if (categoryFilter === "cleaning" && loc.type !== "cleaning")
+            return null;
 
           // Pilih ikon berdasarkan tipe lokasi
           let locationIcon;
