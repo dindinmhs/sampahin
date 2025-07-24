@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { MapPin, Menu, X } from "lucide-react";
-import MenuDropdown from "../maps/menu";
 
 interface HeaderProps {
   authComponent?: React.ReactNode;
@@ -65,7 +64,6 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
           <div className="flex items-center space-x-4">
             {/* Auth Button - Hidden on small screens, shown on medium+ */}
             <div className="hidden sm:flex items-center gap-3">
-              <MenuDropdown/>
               {authComponent}
             </div>
 
