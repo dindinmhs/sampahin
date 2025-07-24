@@ -14,6 +14,7 @@ export default function Page() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Masuk...");
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -21,18 +22,65 @@ export default function Page() {
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
+    setLoadingMessage("Masuk...");
+
+    // Add timeout protection
+    const loginTimeout = setTimeout(() => {
+      setError("Login timeout. Silakan coba lagi.");
+      setIsLoading(false);
+      setLoadingMessage("Masuk...");
+    }, 10000); // 10 second timeout
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Attempting login for:", email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) throw error;
-      router.push("/map");
+      
+      if (error) {
+        console.error("Login error:", error);
+        throw error;
+      }
+      
+      console.log("Login successful, session:", data.session);
+      setLoadingMessage("Memuat...");
+      
+      // Verify session is established
+      if (data.session) {
+        console.log("Session verified, redirecting...");
+        setLoadingMessage("Mengalihkan...");
+        
+        // Get current session to ensure it's still valid
+        const { data: sessionData } = await supabase.auth.getSession();
+        console.log("Current session:", sessionData.session);
+        
+        if (sessionData.session) {
+          // Clear timeout since we're successful
+          clearTimeout(loginTimeout);
+          
+          // Force redirect using multiple methods to ensure it works
+          router.replace("/map");
+          
+          // Fallback redirect if router.replace doesn't work
+          setTimeout(() => {
+            console.log("Fallback redirect triggered");
+            window.location.href = "/map";
+          }, 100);
+        } else {
+          throw new Error("Session tidak dapat diverifikasi");
+        }
+      } else {
+        throw new Error("Session tidak dapat dibuat");
+      }
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      console.error("Login process error:", error);
+      clearTimeout(loginTimeout);
+      setError(error instanceof Error ? error.message : "Terjadi kesalahan saat masuk");
     } finally {
       setIsLoading(false);
+      setLoadingMessage("Masuk...");
     }
   };
 
@@ -102,7 +150,7 @@ export default function Page() {
               disabled={isLoading}
               className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-md"
             >
-              {isLoading ? "Masuk..." : "Masuk →"}
+              {isLoading ? loadingMessage : "Masuk →"}
             </Button>
 
             <div className="text-center text-sm">
