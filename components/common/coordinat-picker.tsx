@@ -2,7 +2,7 @@
 "use client";
 
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -33,12 +33,17 @@ const LocationMarker = ({ onChange }: { onChange: (coord: [number, number]) => v
 const CoordinatePicker = ({
   value,
   onChange,
-  readOnly = false, // default: picker mode
+  readOnly = false,
 }: CoordinatePickerProps) => {
   const [position, setPosition] = useState<[number, number]>(value);
+  const mapRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
     setPosition(value);
+    // Fokus ke posisi baru jika value berubah
+    if (mapRef.current) {
+      mapRef.current.setView(value, 15, { animate: true });
+    }
   }, [value]);
 
   const detectLocation = () => {
@@ -47,6 +52,9 @@ const CoordinatePicker = ({
       const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
       setPosition(coords);
       onChange?.(coords);
+      if (mapRef.current) {
+        mapRef.current.setView(coords, 15, { animate: true });
+      }
     });
   };
 
@@ -70,6 +78,7 @@ const CoordinatePicker = ({
         dragging={!readOnly}
         doubleClickZoom={!readOnly}
         zoomControl={!readOnly}
+        ref={mapRef} // gunakan ref di sini
       >
         <TileLayer
           attribution='&copy; OpenStreetMap'
@@ -78,6 +87,9 @@ const CoordinatePicker = ({
         {!readOnly && onChange && <LocationMarker onChange={(coords) => {
           setPosition(coords);
           onChange(coords);
+          if (mapRef.current) {
+            mapRef.current.setView(coords, 15, { animate: true });
+          }
         }} />}
         <Marker position={position} />
       </MapContainer>
