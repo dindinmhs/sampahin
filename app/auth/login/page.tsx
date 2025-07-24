@@ -33,36 +33,36 @@ export default function Page() {
 
     try {
       console.log("Attempting login for:", email);
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
+
       if (error) {
         console.error("Login error:", error);
         throw error;
       }
-      
+
       console.log("Login successful, session:", data.session);
       setLoadingMessage("Memuat...");
-      
+
       // Verify session is established
       if (data.session) {
         console.log("Session verified, redirecting...");
         setLoadingMessage("Mengalihkan...");
-        
+
         // Get current session to ensure it's still valid
         const { data: sessionData } = await supabase.auth.getSession();
         console.log("Current session:", sessionData.session);
-        
+
         if (sessionData.session) {
           // Clear timeout since we're successful
           clearTimeout(loginTimeout);
-          
+
           // Force redirect using multiple methods to ensure it works
           router.replace("/map");
-          
+
           // Fallback redirect if router.replace doesn't work
           setTimeout(() => {
             console.log("Fallback redirect triggered");
