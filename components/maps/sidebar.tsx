@@ -302,9 +302,6 @@ export const MapSidebar = ({
                         <p className="text-sm font-semibold text-blue-800">
                           {latestReport.reporter_name}
                         </p>
-                        <p className="text-xs font-semibold text-blue-800">
-                          {latestReport.email}
-                        </p>
                       </div>
                     </div>
                   </div>
