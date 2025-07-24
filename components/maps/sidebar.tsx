@@ -95,10 +95,33 @@ export const MapSidebar = ({
       });
 
       // Refresh halaman untuk memperbarui UI
-      window.location.reload();
     } catch (error) {
       console.error("Error starting cleaning:", error);
       alert("Terjadi kesalahan saat memulai pembersihan. Silakan coba lagi.");
+    } finally {
+      const fetchMissions = async () => {
+      const supabase = createClient();
+      if (!user?.id) return;
+      const { data, error } = await supabase
+        .from("daily_missions_with_status")
+        .select("*")
+        .eq(`user_id`, user.id)
+        .eq('mission_id', '3c60b7d4-1329-4e50-b6f9-3345e9d2d344')
+        .order("point_reward", { ascending: true });
+      if (error) {
+        console.error("Error fetching missions:", error.message);
+      }
+      if (data?.length == 0) {
+        await supabase
+          .from('user_mission_logs')
+          .insert([
+            { user_id: user.id, mission_id: '3c60b7d4-1329-4e50-b6f9-3345e9d2d344', completed_at : new Date().toISOString(), point_earned:20},
+          ])
+      }
+
+    };
+    fetchMissions()
+    window.location.reload();
     }
   };
 
@@ -158,7 +181,6 @@ export const MapSidebar = ({
       location.lan,
       location.lat
     ) < 100;
-  console.log(userIsNearby);
   const userIsCleaning = cleaners.some((c) => c.user_id === user?.id);
 
   return (

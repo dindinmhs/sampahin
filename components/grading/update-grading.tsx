@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useParams } from "next/navigation";
 import { LocationType } from "@/types/location";
 import { mimeToExt } from "@/lib/utils";
+import { useUserStore } from "@/lib/store/user-store";
 
 const CoordinatePicker = dynamic(() => import("../common/coordinat-picker"), {
   ssr: false,
@@ -39,6 +40,7 @@ export const UpdateGradingForm = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const user = useUserStore((state) => state.user);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -385,7 +387,29 @@ export const UpdateGradingForm = () => {
           alert("Terjadi kesalahan saat memperbarui laporan. Silakan coba lagi.");
         } finally {
           setLoading(false);
-        }
+          const fetchMissions = async () => {
+      const supabase = createClient();
+      if (!user?.id) return;
+      const { data, error } = await supabase
+        .from("daily_missions_with_status")
+        .select("*")
+        .eq(`user_id`, user.id)
+        .eq('mission_id', '00ef9788-16e5-4658-9522-1fcb8ae42820')
+        .order("point_reward", { ascending: true });
+      if (error) {
+        console.error("Error fetching missions:", error.message);
+      }
+      if (data?.length == 0) {
+        await supabase
+          .from('user_mission_logs')
+          .insert([
+            { user_id: user.id, mission_id: '00ef9788-16e5-4658-9522-1fcb8ae42820', completed_at : new Date().toISOString(), point_earned:20},
+          ])
+      }
+
+    };
+    fetchMissions()
+    }
     }
     };
 
