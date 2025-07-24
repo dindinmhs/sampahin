@@ -3,7 +3,7 @@
 import React from "react";
 import Dropdown from "../common/dropdown";
 import Avatar from "../common/avatar";
-import { User, Settings, LogOut } from "lucide-react";
+import { User, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
