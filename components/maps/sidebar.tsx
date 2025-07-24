@@ -52,6 +52,13 @@ export const MapSidebar = ({
   if (!isOpen || !location) return null;
 
   const handleReportClick = () => {
+    // Cek apakah user berada dalam radius 100m dari lokasi
+    if (!userIsNearby) {
+      alert(
+        "Anda harus berada dalam radius 100m dari lokasi untuk melaporkan lokasi ini sebagai kotor."
+      );
+      return;
+    }
     router.push(`/grading/${location.id}`);
   };
 
@@ -342,20 +349,28 @@ export const MapSidebar = ({
             <h4 className="font-semibold text-gray-700 mb-3 text-sm">
               Sedang Membersihkan ({cleaners.length})
             </h4>
-            <div className="flex items-center">
-              {cleaners.slice(0, 5).map((c) => (
-                <Avatar
-                  key={c.user_id}
-                  displayName={c.cleaner_name || "Anonim"}
-                  size="sm"
-                  className="-ml-2 border-2 border-white first:ml-0"
-                />
-              ))}
-              {cleaners.length > 5 && (
-                <span className="ml-2 text-xs bg-gray-200 rounded-full px-2 py-1">
-                  +{cleaners.length - 5}
-                </span>
-              )}
+            <div className="flex flex-col space-y-3">
+              <div className="flex items-center">
+                {cleaners.slice(0, 5).map((c) => (
+                  <Avatar
+                    key={c.user_id}
+                    displayName={c.cleaner_name || "Anonim"}
+                    size="sm"
+                    className="-ml-2 border-2 border-white first:ml-0"
+                  />
+                ))}
+                {cleaners.length > 5 && (
+                  <span className="ml-2 text-xs bg-gray-200 rounded-full px-2 py-1">
+                    +{cleaners.length - 5}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
+                <p>
+                  Lokasi ini sedang dibersihkan oleh {cleaners.length} orang.
+                  Anda juga dapat bergabung untuk membersihkan lokasi ini.
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -389,12 +404,21 @@ export const MapSidebar = ({
               <span>{isNavigating ? "Navigasi Aktif" : "Navigasi"}</span>
             </button>
 
-            {/* Report Dirty Button - hanya untuk lokasi bersih */}
+            {/* Report Dirty Button - hanya untuk lokasi bersih dan user berada dalam radius 100m */}
             {isCleanLocation() ? (
               <button
                 onClick={handleReportClick}
-                className="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-                title="Laporkan jika tempat ini kotor"
+                disabled={!userIsNearby}
+                className={`${
+                  !userIsNearby
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
+                } text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2`}
+                title={
+                  userIsNearby
+                    ? "Laporkan jika tempat ini kotor"
+                    : "Anda harus berada dalam radius 100m untuk melaporkan"
+                }
               >
                 <svg
                   className="w-4 h-4"
@@ -417,7 +441,7 @@ export const MapSidebar = ({
           </div>
 
           {/* Cleaning Actions Section */}
-          {isDirty && userIsNearby && !userIsCleaning && (
+          {(isDirty || isCleaning) && userIsNearby && !userIsCleaning && (
             <button
               onClick={handleStartCleaning}
               className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
@@ -495,11 +519,21 @@ export const MapSidebar = ({
             </span>
           </button>
 
-          {/* Status Information */}
-          {!userIsNearby && isDirty && (
+          {/* Status Information - pemberitahuan untuk lokasi kotor */}
+          {(isDirty || isCleaning) && !userIsNearby && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center">
               <p className="text-sm text-yellow-700">
-                Anda perlu berada dalam radius 100m untuk memulai pembersihan
+                Anda harus berada dalam radius 100m untuk membersihkan lokasi
+                ini
+              </p>
+            </div>
+          )}
+
+          {/* Status Information - pemberitahuan untuk lokasi bersih yang tidak bisa dilaporkan */}
+          {isCleanLocation() && !userIsNearby && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center">
+              <p className="text-sm text-yellow-700">
+                Anda harus berada dalam radius 100m untuk melaporkan lokasi ini
               </p>
             </div>
           )}
