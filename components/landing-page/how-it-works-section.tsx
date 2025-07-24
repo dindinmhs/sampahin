@@ -39,7 +39,7 @@ const HowItWorksSection: React.FC = () => {
       step: 2,
       title: "Analisis AI",
       description:
-        "Sistem AI akan menganalisis foto dan memberikan skor kebersihan A-E.",
+        "Sistem AI akan menganalisis foto dan memberikan skor kebersihan A-D.",
       bgColor: "bg-blue-600",
     },
     {

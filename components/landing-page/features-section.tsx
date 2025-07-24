@@ -80,7 +80,7 @@ const FeaturesSection: React.FC = () => {
       icon: <CheckCircle className="w-8 h-8 text-white" />,
       title: "Comprehensive Reports",
       description:
-        "Laporan detail dengan sistem grading A-E untuk monitoring yang lebih baik",
+        "Laporan detail dengan sistem grading A-D untuk monitoring yang lebih baik",
       bgColor: "bg-orange-50",
       iconBg: "bg-orange-600",
     },

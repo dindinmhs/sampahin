@@ -12,6 +12,11 @@ const MenuDropdown: React.FC = ({}) => {
 
   const dropdownItems = [
     {
+      id: "map",
+      label: "Peta",
+      onClick: () => router.push("/map"),
+    },
+    {
       id: "grading",
       label: "Grade Kebersihan",
       onClick: () => router.push("/grading"),
