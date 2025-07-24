@@ -46,4 +46,11 @@
 
 - **Frontend:** Next.js + Tailwind CSS + React Leaflet
 - **Backend:** Supabase  
-- **AI Model:** Google Gemini (Gemma 3)  
+- **AI Model:** Google Gemini (Gemma 3)
+
+---
+
+**Note:**  
+Untuk mencoba fitur **Bersihkan** atau **Update Laporan**, jika tidak terdapat lokasi tempat dalam radius 100 meter dari posisi Anda:  
+- Anda bisa membuat **grade kebersihan baru** dengan lokasi yang dekat dengan posisi Anda saat ini.  
+- Atau, gunakan **fake GPS** (misalnya melalui browser developer tools atau aplikasi mock location) agar sistem mendeteksi Anda berada dekat dengan lokasi yang ingin diuji.
