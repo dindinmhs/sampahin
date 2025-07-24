@@ -32,7 +32,7 @@ export const UpdateGradingForm = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment"); // Default ke kamera belakang
 
   const [analysisResult, setAnalysisResult] =
     useState<AnalysisResultProps | null>(null);
@@ -54,72 +54,93 @@ export const UpdateGradingForm = () => {
 
   const startCamera = async () => {
     setCameraError(null);
+    setIsCapturing(true); // Set capturing state immediately to show UI feedback
+    
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API not supported in this browser");
       }
 
+      // Try environment (back) camera first for better user experience
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: "user",
+            facingMode: "environment", // Start with back camera by default
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
         });
 
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          setFacingMode("environment"); // Update facing mode state
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch((err) => {
+              console.error("Error playing video:", err);
+              setCameraError("Gagal memulai video kamera. Silakan coba lagi.");
+              setIsCapturing(false); // Reset capturing state on error
+            });
+          };
+        }
+        return; // Successfully started back camera
+      } catch (backCameraError) {
+        console.error("Back camera access failed:", backCameraError);
+        setCameraError("Mencoba kamera depan sebagai alternatif...");
+        setIsCapturing(false); // Reset capturing state temporarily
+      }
+
+      // Try user camera (front camera) as fallback
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user", // Try front camera
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          setFacingMode("user"); // Update facing mode state
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch((err) => {
+              console.error("Error playing video:", err);
+              setCameraError("Gagal memulai video kamera. Silakan coba lagi.");
+              setIsCapturing(false); // Reset capturing state on error
+            });
+          };
+        }
+        setCameraError(null);
         setIsCapturing(true);
+        return; // Successfully started front camera
+      } catch (frontCameraError) {
+        console.error("Front camera access failed:", frontCameraError);
+        setCameraError("Mencoba akses kamera generik...");
+        setIsCapturing(false); // Reset capturing state temporarily
+      }
+
+      // Try generic camera access as last resort
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
             videoRef.current?.play().catch((err) => {
               console.error("Error playing video:", err);
               setCameraError("Gagal memulai video kamera. Silakan coba lagi.");
+              setIsCapturing(false); // Reset capturing state on error
             });
           };
         }
-      } catch (initialError) {
-        console.error("Front camera access failed:", initialError);
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-          });
-
-          setIsCapturing(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play().catch((err) => {
-                console.error("Error playing video:", err);
-                setCameraError(
-                  "Gagal memulai video kamera. Silakan coba lagi."
-                );
-              });
-            };
-          }
-        } catch (fallbackError) {
-          console.error("Generic camera access failed:", fallbackError);
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "environment",
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          });
-
-          setIsCapturing(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play().catch((err) => {
-                console.error("Error playing video:", err);
-                setCameraError(
-                  "Gagal memulai video kamera. Silakan coba lagi."
-                );
-              });
-            };
-          }
-        }
+        setCameraError(null);
+        setIsCapturing(true);
+        return; // Successfully started generic camera
+      } catch (genericError) {
+        console.error("Generic camera access failed:", genericError);
+        throw genericError; // Re-throw to be caught by outer catch block
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
@@ -146,16 +167,22 @@ export const UpdateGradingForm = () => {
   };
 
   const toggleCamera = async () => {
+    // Show loading state or indicator
+    setCameraError(null);
+    
+    // Stop current camera stream
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
 
+    // Toggle camera direction
     const newFacingMode = facingMode === "user" ? "environment" : "user";
     setFacingMode(newFacingMode);
 
     try {
+      // Request camera with new facing mode
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: newFacingMode,
@@ -164,17 +191,50 @@ export const UpdateGradingForm = () => {
         },
       });
 
+      // Set video stream and play
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((err) => {
             console.error("Error playing video:", err);
+            setCameraError("Gagal memutar video kamera. Silakan coba lagi.");
+            setIsCapturing(false); // Reset capturing state on error
           });
         };
       }
     } catch (error) {
       console.error("Error toggling camera:", error);
       setCameraError("Gagal mengganti kamera. Silakan coba lagi.");
+      
+      // Try the opposite camera as fallback
+      try {
+        const fallbackMode = newFacingMode === "user" ? "environment" : "user";
+        setFacingMode(fallbackMode);
+        
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: fallbackMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch((err) => {
+              console.error("Error playing fallback video:", err);
+              setCameraError("Gagal memutar video kamera. Silakan coba lagi.");
+              setIsCapturing(false); // Reset capturing state on error
+            });
+          };
+          setCameraError("Kamera yang dipilih tidak tersedia, menggunakan kamera alternatif.");
+        }
+      } catch (fallbackError) {
+        console.error("Error with fallback camera:", fallbackError);
+        setCameraError("Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser Anda.");
+        setIsCapturing(false); // Reset capturing state on complete failure
+      }
     }
   };
 
