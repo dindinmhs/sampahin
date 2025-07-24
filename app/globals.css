@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Animasi untuk marker lokasi pengguna */
+@keyframes pulse-blue {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+}
+
+.user-location-pulse {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  background-color: rgba(66, 133, 244, 0.3);
+  border-radius: 50%;
+  left: -7px;
+  top: -7px;
+  animation: pulse-blue 2.5s infinite;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

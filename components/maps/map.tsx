@@ -8,6 +8,7 @@ import {
   Marker,
   useMapEvents,
   ZoomControl,
+  Circle,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -18,7 +19,7 @@ import SearchLocation from "./search-location";
 import { LocationCleanerType, LocationType } from "@/types/location";
 import CategoryFilter from "./category-filter";
 import ChatSidebar from "@/components/chat-forum/chat-sidebar";
-import { Info } from "lucide-react"; // Tambahkan import ini
+import { Info, Satellite, Map, MapPin } from "lucide-react"; // Tambahkan import ini
 import LegendPopup from "./legend-popup"; // Import komponen LegendPopup
 
 interface CleanlinessReport {
@@ -122,7 +123,7 @@ const Maps = () => {
 
   // Tambahkan state untuk legend popup
   const [isLegendOpen, setIsLegendOpen] = useState(false);
-  
+
   // State untuk mode peta (satelit/normal)
   const [mapMode, setMapMode] = useState<"normal" | "satellite">("normal");
 
@@ -406,11 +407,17 @@ const Maps = () => {
       {/* Map Mode Toggle Button - posisi kanan bawah di atas legend */}
       <div className="absolute bottom-36 right-2 z-[50]">
         <button
-          onClick={() => setMapMode(mapMode === "normal" ? "satellite" : "normal")}
+          onClick={() =>
+            setMapMode(mapMode === "normal" ? "satellite" : "normal")
+          }
           className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 p-2 rounded-lg shadow-md transition-colors flex items-center justify-center"
-          title={mapMode === "normal" ? "Beralih ke Mode Satelit" : "Beralih ke Mode Normal"}
+          title={
+            mapMode === "normal"
+              ? "Beralih ke Mode Satelit"
+              : "Beralih ke Mode Normal"
+          }
         >
-          {mapMode === "normal" ? "🛰️" : "🗺️"}
+          {mapMode === "normal" ? <Satellite size={20} /> : <Map size={20} />}
         </button>
       </div>
 
@@ -425,7 +432,7 @@ const Maps = () => {
           className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 p-2 rounded-lg shadow-md transition-colors flex items-center justify-center"
           title="Temukan Lokasi Saya"
         >
-          📍
+          <MapPin size={20} />
         </button>
       </div>
 
@@ -498,7 +505,21 @@ const Maps = () => {
             position={userLocation}
             icon={L.divIcon({
               className: "user-location-marker",
-              html: `<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(66, 133, 244, 0.5);"></div>`,
+              html: `
+                <div style="position: relative;">
+                  <div class="user-location-pulse"></div>
+                  <div style="
+                    background-color: #4285F4;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 0 10px rgba(66, 133, 244, 0.5);
+                    position: relative;
+                    z-index: 2;
+                  "></div>
+                </div>
+              `,
               iconSize: [22, 22],
               iconAnchor: [11, 11],
             })}
@@ -547,18 +568,42 @@ const Maps = () => {
           });
 
           return (
-            <Marker
-              key={index}
-              position={[loc.lan, loc.lat]}
-              icon={
-                isNavigating && navigationTarget?.id === loc.id
-                  ? navIcon
-                  : locationIcon
-              }
-              eventHandlers={{
-                click: () => handleMarkerClick(loc),
-              }}
-            />
+            <div key={`location-${loc.id}-${index}`}>
+              {/* Tampilkan Circle hanya jika lokasi ini dipilih */}
+              {selectedLocation && selectedLocation.id === loc.id && (
+                <Circle
+                  center={[loc.lan, loc.lat]}
+                  radius={100} // Radius dalam meter
+                  pathOptions={{
+                    color:
+                      loc.type === "cleaning"
+                        ? "#FFA500" // Orange untuk lokasi yang sedang dibersihkan
+                        : isClean
+                        ? "#22c55e" // Hijau untuk lokasi bersih
+                        : "#ef4444", // Merah untuk lokasi kotor
+                    fillColor:
+                      loc.type === "cleaning"
+                        ? "#FFA50033" // Orange dengan transparansi
+                        : isClean
+                        ? "#22c55e33" // Hijau dengan transparansi
+                        : "#ef444433", // Merah dengan transparansi
+                    fillOpacity: 0.9,
+                    weight: 0,
+                  }}
+                />
+              )}
+              <Marker
+                position={[loc.lan, loc.lat]}
+                icon={
+                  isNavigating && navigationTarget?.id === loc.id
+                    ? navIcon
+                    : locationIcon
+                }
+                eventHandlers={{
+                  click: () => handleMarkerClick(loc),
+                }}
+              />
+            </div>
           );
         })}
 
