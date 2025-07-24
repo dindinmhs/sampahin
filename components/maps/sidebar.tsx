@@ -147,13 +147,6 @@ export const MapSidebar = ({
     );
   };
 
-  // Fungsi untuk menentukan apakah lokasi kotor berdasarkan grade
-  const isDirtyLocation = () => {
-    return (
-      latestReport && (latestReport.grade === "C" || latestReport.grade === "D")
-    );
-  };
-
   const isDirty = location.type === "dirty";
   const isCleaning = location.type === "cleaning";
   const userIsNearby =
