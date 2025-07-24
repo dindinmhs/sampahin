@@ -122,6 +122,9 @@ const Maps = () => {
 
   // Tambahkan state untuk legend popup
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  
+  // State untuk mode peta (satelit/normal)
+  const [mapMode, setMapMode] = useState<"normal" | "satellite">("normal");
 
   // Handler untuk legend
   const handleOpenLegend = () => {
@@ -400,6 +403,32 @@ const Maps = () => {
         </button>
       </div>
 
+      {/* Map Mode Toggle Button - posisi kanan bawah di atas legend */}
+      <div className="absolute bottom-36 right-2 z-[50]">
+        <button
+          onClick={() => setMapMode(mapMode === "normal" ? "satellite" : "normal")}
+          className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 p-2 rounded-lg shadow-md transition-colors flex items-center justify-center"
+          title={mapMode === "normal" ? "Beralih ke Mode Satelit" : "Beralih ke Mode Normal"}
+        >
+          {mapMode === "normal" ? "🛰️" : "🗺️"}
+        </button>
+      </div>
+
+      {/* Locate Me Button - posisi kanan bawah di atas map mode toggle */}
+      <div className="absolute bottom-48 right-2 z-[50]">
+        <button
+          onClick={() => {
+            if (userLocation && mapRef) {
+              mapRef.setView(userLocation, 16, { animate: true });
+            }
+          }}
+          className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 p-2 rounded-lg shadow-md transition-colors flex items-center justify-center"
+          title="Temukan Lokasi Saya"
+        >
+          📍
+        </button>
+      </div>
+
       <div className="absolute top-16 sm:top-20 md:top-4 md:left-1/2 md:transform md:-translate-x-1/2 left-4 md:right-auto z-20 md:z-[60]">
         <CategoryFilter
           categoryFilter={categoryFilter}
@@ -448,10 +477,17 @@ const Maps = () => {
         }}
       >
         <ZoomControl position="bottomright" />
-        <TileLayer
-          attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        {mapMode === "normal" ? (
+          <TileLayer
+            attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+        ) : (
+          <TileLayer
+            attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+        )}
 
         {/* Komponen untuk mendapatkan lokasi pengguna */}
         <LocationFinder setUserLocation={setUserLocation} />
