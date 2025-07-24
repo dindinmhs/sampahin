@@ -490,7 +490,7 @@ export const UpdateGradingForm = () => {
             />
             <p className="my-2 font-medium">{location[0].name}</p>
             <p className="text-sm text-gray-500">{location[0].address}</p>
-            <h2 className="text-sm font-medium text-gray-700 mb-3 mt-6">Foto</h2>
+            <h2 className="text-sm font-medium text-gray-700 mb-3 mt-6">Foto Lokasi untuk di grading</h2>
 
             {/* Upload Options */}
             <div className="flex gap-2 mb-4">

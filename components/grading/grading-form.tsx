@@ -342,7 +342,7 @@ export const GradingForm = () => {
         <div className="bg-white rounded-lg shadow-sm px-6 py-2">
           {/* Foto Label */}
           <div className="mb-4">
-            <h2 className="text-sm font-medium text-gray-700 mb-3">Foto</h2>
+            <h2 className="text-sm font-medium text-gray-700 mb-3">Foto Lokasi untuk di grading</h2>
 
             {/* Upload Options */}
             <div className="flex gap-2 mb-4">

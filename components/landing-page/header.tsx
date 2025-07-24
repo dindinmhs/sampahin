@@ -63,7 +63,9 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
           {/* Auth Button & Mobile Menu Button */}
           <div className="flex items-center space-x-4">
             {/* Auth Button - Hidden on small screens, shown on medium+ */}
-            <div className="hidden sm:block">{authComponent}</div>
+            <div className="hidden sm:flex items-center gap-3">
+              {authComponent}
+            </div>
 
             {/* Mobile Menu Button */}
             <button

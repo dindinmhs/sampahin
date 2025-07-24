@@ -286,6 +286,11 @@ const Maps = () => {
     setSelectedLocation(location);
     setIsSidebarOpen(true);
 
+    // Zoom dan fokus ke lokasi yang diklik
+    if (mapRef) {
+      mapRef.setView([location.lan, location.lat], 16, { animate: true });
+    }
+
     if (isNavigating) {
       setNavigationTarget(location);
     }
