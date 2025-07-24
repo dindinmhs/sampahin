@@ -1,32 +1,32 @@
-# 🧹 Sampahin
+# Sampahin
 
 **Sampahin** adalah platform web kolaboratif berbasis AI yang memungkinkan pengguna untuk melakukan *grading* kebersihan lokasi dan beraksi bersama melalui peta interaktif. Aplikasi ini bertujuan untuk mendorong partisipasi masyarakat dalam menjaga kebersihan lingkungan dengan fitur-fitur cerdas dan kolaboratif.
 
 ---
 
-## 🚀 Fitur Utama
+## Fitur Utama
 
-- 🗺️ **Peta Interaktif Lokasi**  
+- **Peta Interaktif Lokasi**  
   Menampilkan titik-titik lokasi yang telah dinilai dan memungkinkan pengguna menavigasi ke lokasi tersebut.
 
-- 🧠 **Grading Kebersihan dengan AI**  
+- **Grading Kebersihan dengan AI**  
   Upload atau foto lokasi sekitar, lalu gunakan AI untuk menganalisis dan memberikan nilai kebersihan (A–D).
 
-- 🧍‍♂️ **Aksi Bersih dan Pelaporan**  
+- **Aksi Bersih dan Pelaporan**  
   Pengguna dapat mendatangi lokasi kotor dan melakukan aksi bersih bersama, lalu melaporkannya.
 
-- 💬 **Komunitas dan Chat**  
+- **Komunitas dan Chat**  
   Bergabung dalam percakapan komunitas untuk berkolaborasi, berbagi info, dan saling memotivasi.
 
-- 🧪 **Pemindaian Sampah AI**  
+- **Pemindaian Sampah AI**  
   Gunakan kamera untuk mengenali jenis sampah dan dapatkan panduan daur ulang dan reuse.
 
-- 🏆 **Misi Harian & Gamifikasi**  
+- **Misi Harian & Gamifikasi**  
   Selesaikan misi seperti upload foto tempat kotor, bersihkan lokasi, atau kirim pesan di komunitas untuk mendapatkan poin.
 
 ---
 
-## 🧭 Struktur Path Halaman
+## Struktur Path Halaman
 
 | Path                         | Deskripsi Halaman                                      |
 |-----------------------------|---------------------------------------------------------|
@@ -42,7 +42,7 @@
 
 ---
 
-## 📦 Tech Stack
+## Tech Stack
 
 - **Frontend:** Next.js + Tailwind CSS + React Leaflet
 - **Backend:** Supabase  

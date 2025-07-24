@@ -14,7 +14,9 @@ export const Navbar = ({ title }: { title: string }) => {
           </Link>
           <span>{title}</span>
         </div>
-        <Logo />
+        <div className="hidden sm:block">
+          <Logo />
+        </div>
         <div className="flex items-center gap-3">
           <MenuDropdown />
           <AuthButton />

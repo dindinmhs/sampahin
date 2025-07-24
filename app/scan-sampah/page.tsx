@@ -4,7 +4,7 @@ import { ScanForm } from "@/components/scan-sampah/scan-form";
 const Page = () => {
   return (
     <>
-      <Navbar />
+      <Navbar title="Scan Sampah"/>
       <main className="min-h-screen bg-gray-50 py-5">
         <ScanForm />
       </main>
