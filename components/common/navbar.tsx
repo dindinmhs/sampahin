@@ -12,11 +12,11 @@ export const Navbar = ({ title }: { title: string }) => {
           <Link href="/map" className="hover:opacity-80">
             <ArrowLeft />
           </Link>
-          <span>{title}</span>
+          {/* <span>{title}</span> */}
         </div>
         <Logo />
         <div className="flex items-center gap-3">
-          <MenuDropdown/>
+          <MenuDropdown />
           <AuthButton />
         </div>
       </nav>
