@@ -17,7 +17,9 @@ import RoutingMachine from "./routing-machine";
 import SearchLocation from "./search-location";
 import { LocationCleanerType, LocationType } from "@/types/location";
 import CategoryFilter from "./category-filter";
-import ChatSidebar from "@/components/chat-forum/chat-sidebar"; // Tambahkan import
+import ChatSidebar from "@/components/chat-forum/chat-sidebar";
+import { Info } from "lucide-react"; // Tambahkan import ini
+import LegendPopup from "./legend-popup"; // Import komponen LegendPopup
 
 interface CleanlinessReport {
   id: number;
@@ -117,6 +119,18 @@ const Maps = () => {
 
   // State untuk Google Maps
   const [showGoogleMapsOption, setShowGoogleMapsOption] = useState(false);
+
+  // Tambahkan state untuk legend popup
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
+
+  // Handler untuk legend
+  const handleOpenLegend = () => {
+    setIsLegendOpen(true);
+  };
+
+  const handleCloseLegend = () => {
+    setIsLegendOpen(false);
+  };
 
   useEffect(() => {
     const getLocations = async () => {
@@ -424,6 +438,17 @@ const Maps = () => {
         <SearchLocation onSelect={handleSearchSelect} />
       </div>
 
+      {/* Legend Button - posisi kanan atas */}
+      <div className="absolute bottom-24 right-2 z-[50]">
+        <button
+          onClick={handleOpenLegend}
+          className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 p-2 rounded-lg shadow-md transition-colors flex items-center justify-center"
+          title="Legenda"
+        >
+          <Info size={20} />
+        </button>
+      </div>
+
       <div className="absolute top-16 sm:top-20 md:top-4 md:left-1/2 md:transform md:-translate-x-1/2 left-4 md:right-auto z-20 md:z-[60]">
         <CategoryFilter
           categoryFilter={categoryFilter}
@@ -573,6 +598,9 @@ const Maps = () => {
         isOpen={isChatOpen && selectedLocation !== null}
         onClose={handleCloseChat}
       />
+
+      {/* Legend Popup */}
+      <LegendPopup isOpen={isLegendOpen} onClose={handleCloseLegend} />
     </div>
   );
 };
