@@ -108,11 +108,13 @@ const Maps = () => {
   const [categoryFilter, setCategoryFilter] = useState<
     "all" | "clean" | "dirty"
   >("all");
-  const [locationCleaners, setLocationCleaners] = useState<LocationCleanerType[]>([]);
+  const [locationCleaners, setLocationCleaners] = useState<
+    LocationCleanerType[]
+  >([]);
 
   // Tambahkan state untuk chat forum
   const [isChatOpen, setIsChatOpen] = useState(false);
-  
+
   // State untuk Google Maps
   const [showGoogleMapsOption, setShowGoogleMapsOption] = useState(false);
 
@@ -176,13 +178,98 @@ const Maps = () => {
   useEffect(() => {
     const getLocationCleaners = async () => {
       const supabase = createClient();
+
+      // Ambil data awal
       const { data, error } = await supabase
         .from("location_cleaners_with_name")
         .select("id,location_id,user_id,cleaner_name");
+
       if (!error) setLocationCleaners(data || []);
+
+      // Subscribe ke perubahan pada tabel location_cleaners
+      const locationCleanersSubscription = supabase
+        .channel("location-cleaners-changes")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "location_cleaners" },
+          async (payload) => {
+            console.log("Location cleaner added:", payload);
+            // Dapatkan data cleaner baru dengan nama
+            const { data: newCleanerData, error: newCleanerError } =
+              await supabase
+                .from("location_cleaners_with_name")
+                .select("id,location_id,user_id,cleaner_name")
+                .eq("id", payload.new.id)
+                .single();
+
+            if (!newCleanerError && newCleanerData) {
+              // Tambahkan cleaner baru ke state tanpa mengambil semua data
+              setLocationCleaners((prev) => [...prev, newCleanerData]);
+            } else {
+              // Fallback jika gagal mendapatkan data baru
+              refreshAllCleaners();
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "DELETE", schema: "public", table: "location_cleaners" },
+          async (payload) => {
+            console.log("Location cleaner removed:", payload);
+            // Hapus cleaner dari state tanpa mengambil semua data
+            setLocationCleaners((prev) =>
+              prev.filter((cleaner) => cleaner.id !== payload.old.id)
+            );
+          }
+        )
+        .subscribe();
+
+      // Fungsi untuk refresh semua data cleaner
+      const refreshAllCleaners = async () => {
+        const { data, error } = await supabase
+          .from("location_cleaners_with_name")
+          .select("id,location_id,user_id,cleaner_name");
+
+        if (!error) setLocationCleaners(data || []);
+      };
+
+      return () => {
+        locationCleanersSubscription.unsubscribe();
+      };
     };
+
     getLocationCleaners();
-  }, [selectedLocation, isSidebarOpen]);
+  }, []); // Hapus dependency agar subscription tidak diulang saat sidebar dibuka/ditutup
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Subscribe ke perubahan pada tabel locations
+    const locationsSubscription = supabase
+      .channel("locations-changes")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "locations" },
+        async (payload) => {
+          console.log("Location updated:", payload);
+
+          // Update state locations dengan data baru
+          setLocations((prevLocations) =>
+            prevLocations.map((loc) =>
+              loc.id === payload.new.id
+                ? { ...loc, ...payload.new } // Merge data baru
+                : loc
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription saat komponen unmount
+    return () => {
+      locationsSubscription.unsubscribe();
+    };
+  }, []);
 
   const dirtyIcon = L.icon({
     iconUrl: "/dirty.png",
@@ -194,6 +281,15 @@ const Maps = () => {
 
   const cleanIcon = L.icon({
     iconUrl: "/clean.png",
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+    shadowUrl: undefined,
+  });
+
+  // Tambahkan ikon cleaning
+  const cleaningIcon = L.icon({
+    iconUrl: "/cleaning.png",
     iconSize: [32, 32],
     iconAnchor: [16, 16],
     popupAnchor: [0, -16],
@@ -266,10 +362,13 @@ const Maps = () => {
   };
 
   // Fungsi untuk membuka Google Maps
-  const handleOpenGoogleMaps = useCallback((start: [number, number], end: [number, number]) => {
-    const googleMapsUrl = `https://www.google.com/maps/dir/${start[0]},${start[1]}/${end[0]},${end[1]}`;
-    window.open(googleMapsUrl, '_blank');
-  }, []);
+  const handleOpenGoogleMaps = useCallback(
+    (start: [number, number], end: [number, number]) => {
+      const googleMapsUrl = `https://www.google.com/maps/dir/${start[0]},${start[1]}/${end[0]},${end[1]}`;
+      window.open(googleMapsUrl, "_blank");
+    },
+    []
+  );
 
   // Handler untuk menampilkan opsi Google Maps
   const handleShowGoogleMapsOption = useCallback(() => {
@@ -338,13 +437,18 @@ const Maps = () => {
           {/* Tombol Google Maps - tampil setelah route ditemukan */}
           {showGoogleMapsOption && userLocation && navigationTarget && (
             <button
-              onClick={() => handleOpenGoogleMaps(userLocation, [navigationTarget.lan, navigationTarget.lat])}
+              onClick={() =>
+                handleOpenGoogleMaps(userLocation, [
+                  navigationTarget.lan,
+                  navigationTarget.lat,
+                ])
+              }
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors flex items-center justify-center space-x-2 shadow-lg"
             >
               <span>Buka di Google Maps</span>
             </button>
           )}
-          
+
           {/* Tombol Batalkan Navigasi */}
           <button
             onClick={handleCancelNavigation}
@@ -397,12 +501,22 @@ const Maps = () => {
           if (categoryFilter === "clean" && !isClean) return null;
           if (categoryFilter === "dirty" && isClean) return null;
 
-          // Pilih ikon berdasarkan hasil pengecekan grade
-          const locationIcon = isClean ? cleanIcon : dirtyIcon;
+          // Pilih ikon berdasarkan tipe lokasi
+          let locationIcon;
+          if (loc.type === "cleaning") {
+            locationIcon = cleaningIcon;
+          } else {
+            locationIcon = isClean ? cleanIcon : dirtyIcon;
+          }
 
           // Ikon untuk target navigasi
           const navIcon = L.icon({
-            iconUrl: isClean ? "/clean.png" : "/dirty.png",
+            iconUrl:
+              loc.type === "cleaning"
+                ? "/cleaning.png"
+                : isClean
+                ? "/clean.png"
+                : "/dirty.png",
             iconSize: [40, 40],
             iconAnchor: [20, 20],
             popupAnchor: [0, -20],

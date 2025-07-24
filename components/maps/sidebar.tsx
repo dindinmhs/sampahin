@@ -31,8 +31,8 @@ interface MapSidebarProps {
   latestReport: CleanlinessReport | null;
   onNavigate: () => void;
   isNavigating: boolean;
-  locationCleaners : LocationCleanerType[];
-  userLocation: [number, number]|null; 
+  locationCleaners: LocationCleanerType[];
+  userLocation: [number, number] | null;
 }
 
 export const MapSidebar = ({
@@ -43,7 +43,7 @@ export const MapSidebar = ({
   onNavigate,
   isNavigating,
   locationCleaners,
-  userLocation
+  userLocation,
 }: MapSidebarProps) => {
   const router = useRouter();
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -65,7 +65,9 @@ export const MapSidebar = ({
     if (latestReport) {
       setIsChatOpen(true);
     } else {
-      alert("Belum ada laporan untuk lokasi ini. Chat komunitas hanya tersedia untuk lokasi yang sudah memiliki laporan kebersihan.");
+      alert(
+        "Belum ada laporan untuk lokasi ini. Chat komunitas hanya tersedia untuk lokasi yang sudah memiliki laporan kebersihan."
+      );
     }
   };
 
@@ -78,24 +80,21 @@ export const MapSidebar = ({
   );
 
   const handleStartCleaning = async () => {
-  const supabase = createClient();
-  // Update type location jadi cleaning
-  await supabase
-    .from("locations")
-    .update({ type: "cleaning" })
-    .eq("id", location?.id);
+    const supabase = createClient();
+    // Update type location jadi cleaning
+    await supabase
+      .from("locations")
+      .update({ type: "cleaning" })
+      .eq("id", location?.id);
 
-  // Tambah ke location_cleaners
-  await supabase
-    .from("location_cleaners")
-    .insert({
+    // Tambah ke location_cleaners
+    await supabase.from("location_cleaners").insert({
       user_id: user?.id,
       location_id: location?.id,
     });
 
-  // Refresh data
-  // ...refresh state...
-};
+    // Tidak perlu refresh state karena akan diupdate oleh subscription
+  };
 
   const handleCancelCleaning = async () => {
     const supabase = createClient();
@@ -123,32 +122,18 @@ export const MapSidebar = ({
     // ...refresh state...
   };
 
-  const handleReport = async () => {
-    // ...fungsi lapor yang sudah ada...
-    // Setelah lapor, update type location jadi cleanline
-    const supabase = createClient();
-    await supabase
-      .from("locations")
-      .update({ type: "dirty" })
-      .eq("id", location?.id);
-
-    // Hapus semua pembersih dari location_cleaners
-    await supabase
-      .from("location_cleaners")
-      .delete()
-      .eq("location_id", location?.id);
-
-    // Refresh data
-    // ...refresh state...
-  };
-
   const isDirty = location.type === "dirty";
   const isCleaning = location.type === "cleaning";
   const userIsNearby =
     userLocation &&
     location &&
-    getDistanceMeters(userLocation[0], userLocation[1], location.lan, location.lat) < 100;
-  console.log(userIsNearby)
+    getDistanceMeters(
+      userLocation[0],
+      userLocation[1],
+      location.lan,
+      location.lat
+    ) < 100;
+  console.log(userIsNearby);
   const userIsCleaning = cleaners.some((c) => c.user_id === user?.id);
 
   return (
@@ -255,7 +240,14 @@ export const MapSidebar = ({
                       ? "bg-orange-500"
                       : "bg-red-500"
                   }`}
-                  {...{style: {width: `${Math.min(100, Math.max(0, latestReport.score))}%`}}}
+                  {...{
+                    style: {
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, latestReport.score)
+                      )}%`,
+                    },
+                  }}
                 />
               </div>
 
@@ -339,19 +331,23 @@ export const MapSidebar = ({
         </div>
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <button
-            onClick={handleReportClick}
-            className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span>Lapor</span>
-          </button>
+          {/* Tombol Lapor hijau - hanya muncul jika user sedang membersihkan */}
+          {isCleaning && userIsCleaning && (
+            <button
+              onClick={handleReportClick}
+              className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <span>Selesai & Lapor</span>
+            </button>
+          )}
+          {/* Hapus kondisi !isCleaning untuk tombol Lapor biru */}
           <button
             onClick={handleNavigateClick}
             disabled={isNavigating}
@@ -383,8 +379,8 @@ export const MapSidebar = ({
             onClick={handleChatClick}
             disabled={!latestReport}
             className={`w-full py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2 ${
-              latestReport 
-                ? "bg-purple-600 hover:bg-purple-700 text-white" 
+              latestReport
+                ? "bg-purple-600 hover:bg-purple-700 text-white"
                 : "bg-gray-300 text-gray-500 cursor-not-allowed"
             }`}
           >
@@ -400,29 +396,22 @@ export const MapSidebar = ({
             </span>
           </button>
           {isDirty && userIsNearby && !isCleaning && (
-          <button
-            onClick={handleStartCleaning}
-            className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-          >
-            <span>Bersihkan</span>
-          </button>
-        )}
-        {isCleaning && userIsCleaning && (
-          <button
-            onClick={handleReport}
-            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-          >
-            <span>Lapor</span>
-          </button>
-        )}
-        {isCleaning && userIsCleaning && (
-          <button
-            onClick={handleCancelCleaning}
-            className="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
-          >
-            <span>Batal Bersihkan</span>
-          </button>
-        )}
+            <button
+              onClick={handleStartCleaning}
+              className="mt-3 w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+            >
+              <span>Bersihkan</span>
+            </button>
+          )}
+          {/* Hapus tombol Lapor biru */}
+          {isCleaning && userIsCleaning && (
+            <button
+              onClick={handleCancelCleaning}
+              className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center space-x-2"
+            >
+              <span>Batal Bersihkan</span>
+            </button>
+          )}
         </div>
       </div>
 
