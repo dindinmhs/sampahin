@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Send, Loader2, AlertCircle } from "lucide-react";
 import Avatar from "../common/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { useUserStore } from "@/lib/store/user-store";
 
 /**
  * Interface untuk data pesan chat
@@ -41,28 +42,16 @@ export const ChatSidebar = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [user, setUser] = useState<{
-    id: string;
-    email?: string;
-    user_metadata?: {
-      full_name?: string;
-    };
-  } | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isSubscribedRef = useRef(false);
+  const user = useUserStore((state) => state.user);
   const supabase = createClient();
 
   /**
    * Mengecek status autentikasi pengguna saat ini
    */
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    checkAuth();
-  }, [supabase]);
-
+  
   /**
    * Mengambil daftar pesan chat dari server berdasarkan report_id
    * Menggunakan view forum_reports_chat_with_user yang sudah include sender_name
@@ -135,6 +124,28 @@ export const ChatSidebar = ({
       setError(`Gagal mengirim pesan: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setSending(false);
+      const fetchMissions = async () => {
+      const supabase = createClient();
+      if (!user?.id) return;
+      const { data, error } = await supabase
+        .from("daily_missions_with_status")
+        .select("*")
+        .eq(`user_id`, user.id)
+        .eq('mission_id', '555348c5-49e1-47b0-9270-3280de951cb3')
+        .order("point_reward", { ascending: true });
+      if (error) {
+        console.error("Error fetching missions:", error.message);
+      }
+      if (data?.length == 0) {
+        await supabase
+          .from('user_mission_logs')
+          .insert([
+            { user_id: user.id, mission_id: '555348c5-49e1-47b0-9270-3280de951cb3', completed_at : new Date().toISOString(), point_earned:20},
+          ])
+      }
+
+    };
+    fetchMissions()
     }
   };
 

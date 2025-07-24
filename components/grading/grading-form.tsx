@@ -10,6 +10,7 @@ import { Label } from "../ui/label";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { mimeToExt } from "@/lib/utils";
+import { useUserStore } from "@/lib/store/user-store";
 
 const CoordinatePicker = dynamic(() => import("../common/coordinat-picker"), {
   ssr: false,
@@ -538,6 +539,7 @@ const GradeShareForm = ({
   });
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
+  const user = useUserStore((state) => state.user);
 
   const submit = async () => {
     // Validasi form
@@ -616,6 +618,28 @@ const GradeShareForm = ({
       alert("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.");
     } finally {
       setLoading(false);
+      const fetchMissions = async () => {
+      const supabase = createClient();
+      if (!user?.id) return;
+      const { data, error } = await supabase
+        .from("daily_missions_with_status")
+        .select("*")
+        .eq(`user_id`, user.id)
+        .eq('mission_id', '0e77a8e0-3309-46f2-b3b3-e2d77820429a')
+        .order("point_reward", { ascending: true });
+      if (error) {
+        console.error("Error fetching missions:", error.message);
+      }
+      if (data?.length == 0) {
+        await supabase
+          .from('user_mission_logs')
+          .insert([
+            { user_id: user.id, mission_id: '0e77a8e0-3309-46f2-b3b3-e2d77820429a', completed_at : new Date().toISOString(), point_earned:10},
+          ])
+      }
+
+    };
+    fetchMissions()
     }
   };
 

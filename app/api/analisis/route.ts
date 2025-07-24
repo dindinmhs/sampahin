@@ -36,12 +36,12 @@ PENTING: Jika gambar yang dikirim TIDAK BERKAITAN dengan objek sampah, maka jawa
 "Objek bukanlah sampah"
 
 Jika gambar berkaitan dengan sampah, berikan penilaian dengan format berikut:
-nama objek : 
+nama objek
 kategori : (organik/anorganik/b3)
 status bahaya :
 produk reuse : (ide produk daur ulang (reuse) salah satu saja)
 langkah-langkah : (langkah-langkah detail untuk mengolahnya kembali menjadi barang yang berguna dalam bentuk list)
-tolong jawab langsung ke nama objek saja jangan format markdown`,
+tolong jawab langsung dari nama objeksaja jangan format markdown`,
           },
         ],
       },

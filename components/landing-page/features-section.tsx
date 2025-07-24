@@ -215,7 +215,7 @@ const FeaturesSection: React.FC = () => {
           {/* Navigation Buttons */}
           <button
             onClick={prevSlide}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 z-10 hidden sm:flex"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 w-12 h-12 bg-white rounded-full shadow-lg items-center justify-center hover:bg-gray-50 z-10 hidden sm:flex"
             aria-label="Previous slide"
           >
             <ChevronLeft className="w-6 h-6 text-gray-600" />
@@ -223,7 +223,7 @@ const FeaturesSection: React.FC = () => {
 
           <button
             onClick={nextSlide}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 z-10 hidden sm:flex"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 w-12 h-12 bg-white rounded-full shadow-lg items-center justify-center hover:bg-gray-50 z-10 hidden sm:flex"
             aria-label="Next slide"
           >
             <ChevronRight className="w-6 h-6 text-gray-600" />

@@ -268,6 +268,7 @@ export const ScanForm = () => {
         .from("daily_missions_with_status")
         .select("*")
         .eq(`user_id`, user.id)
+        .eq('mission_id', 'b2d3dba2-ef1b-4396-b098-47524b407709')
         .order("point_reward", { ascending: true });
       if (error) {
         console.error("Error fetching missions:", error.message);
