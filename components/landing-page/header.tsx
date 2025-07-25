@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { MapPin, Menu, X } from "lucide-react";
+import MenuDropdown from "../maps/menu";
+import { useUserStore } from "@/lib/store/user-store";
 
 interface HeaderProps {
   authComponent?: React.ReactNode;
@@ -9,6 +11,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ authComponent }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user } = useUserStore();
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -64,6 +67,7 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
           <div className="flex items-center space-x-4">
             {/* Auth Button - Hidden on small screens, shown on medium+ */}
             <div className="hidden sm:flex items-center gap-3">
+              {user && <MenuDropdown />}
               {authComponent}
             </div>
 
@@ -101,7 +105,8 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
               ))}
 
               {/* Auth Button for Mobile */}
-              <div className="pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-end pt-4 border-t border-gray-200 gap-3">
+                {user && <MenuDropdown />}
                 {authComponent}
               </div>
             </nav>

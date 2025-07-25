@@ -21,6 +21,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         login:
           "bg-green-500 text-primary-foreground shadow hover:bg-green-500/90",
+        greenBtn:
+          "bg-green-500 text-primary-foreground shadow hover:bg-green-500/90",
       },
       size: {
         default: "h-9 px-4 py-2",
