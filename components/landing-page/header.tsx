@@ -30,24 +30,31 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
     { href: "#beranda", label: "Beranda" },
     { href: "#features", label: "Fitur" },
     { href: "#how-it-works", label: "Cara Kerja" },
+    { href: "#mobile-app", label: "Aplikasi" },
+    { href: "#faq", label: "FAQ" },
   ];
 
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-4">
+    <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/90 border-b border-emerald-200/50 shadow-lg shadow-emerald-500/5">
+      <div className="container mx-auto px-4 lg:px-8">
+        <div className="flex items-center justify-between h-18 py-4">
           {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-500 rounded-lg flex items-center justify-center">
-              <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/30 rotate-3 hover:rotate-0 transition-transform duration-300">
+                <MapPin className="w-6 h-6 text-white" />
+              </div>
             </div>
-            <span className="text-xl sm:text-2xl font-bold text-gray-900">
-              Sampahin
-            </span>
+            <div>
+              <h1 className="text-2xl font-black bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                Sampahin
+              </h1>
+              <p className="text-xs text-emerald-500 font-medium">AI-Powered</p>
+            </div>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-6 lg:space-x-8">
+          <nav className="hidden md:flex items-center space-x-8">
             {navItems.map((item) => (
               <a
                 key={item.href}
@@ -56,9 +63,10 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
                   e.preventDefault();
                   scrollToSection(item.href.substring(1));
                 }}
-                className="text-gray-700 hover:text-green-600 transition-colors cursor-pointer"
+                className="relative text-slate-700 hover:text-emerald-600 transition-colors group cursor-pointer font-medium"
               >
                 {item.label}
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 group-hover:w-full transition-all duration-300"></span>
               </a>
             ))}
           </nav>
@@ -68,13 +76,13 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
             {/* Auth Button - Hidden on small screens, shown on medium+ */}
             <div className="hidden sm:flex items-center gap-3">
               {user && <MenuDropdown />}
-              {authComponent}
+              <div className="flex items-center space-x-3">{authComponent}</div>
             </div>
 
             {/* Mobile Menu Button */}
             <button
               onClick={toggleMenu}
-              className="md:hidden p-2 rounded-md text-gray-700 hover:text-green-600 hover:bg-gray-100 transition-colors"
+              className="md:hidden p-2 rounded-md text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
               aria-label="Toggle menu"
             >
               {isMenuOpen ? (
@@ -88,7 +96,7 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
 
         {/* Mobile Navigation Menu */}
         {isMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 py-4">
+          <div className="md:hidden py-4 border-t border-emerald-200/50">
             <nav className="flex flex-col space-y-4">
               {navItems.map((item) => (
                 <a
@@ -98,14 +106,14 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
                     e.preventDefault();
                     scrollToSection(item.href.substring(1));
                   }}
-                  className="text-gray-700 hover:text-green-600 transition-colors cursor-pointer px-2 py-1"
+                  className="text-slate-700 hover:text-emerald-600 transition-colors cursor-pointer px-2 py-1 font-medium"
                 >
                   {item.label}
                 </a>
               ))}
 
               {/* Auth Button for Mobile */}
-              <div className="flex items-center justify-end pt-4 border-t border-gray-200 gap-3">
+              <div className="flex items-center justify-end pt-4 border-t border-emerald-200/50 gap-3">
                 {user && <MenuDropdown />}
                 {authComponent}
               </div>
