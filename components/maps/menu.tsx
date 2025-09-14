@@ -27,6 +27,11 @@ const MenuDropdown: React.FC = ({}) => {
       onClick: () => router.push("/scan-sampah"),
     },
     {
+      id: "leaderboard",
+      label: "Leaderboard Kota",
+      onClick: () => router.push("/leaderboard"),
+    },
+    {
       id: "tukar-poin",
       label: "Tukar Poin",
       onClick: () => router.push("tukar-poin"),
