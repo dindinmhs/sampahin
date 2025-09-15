@@ -575,8 +575,6 @@ interface Props {
   selectedImage: File;
 }
 
-// ...existing code...
-
 const GradeShareForm = ({
   open,
   setOpen,
@@ -586,10 +584,16 @@ const GradeShareForm = ({
   const [form, setForm] = useState<{
     nama: string;
     alamat: string;
+    city: string;
+    province: string;
+    country: string;
     coord: [number, number];
   }>({
     nama: "",
     alamat: "",
+    city: "",
+    province: "",
+    country: "",
     coord: [-6.89794, 107.63576],
   });
   const supabase = createClient();
@@ -622,52 +626,25 @@ const GradeShareForm = ({
         throw new Error(data.error);
       }
       
-      console.log('=== REVERSE GEOCODING RESULT ===');
-      console.log('Raw API Response:', data);
-      console.log('Display Name:', data.display_name);
-      console.log('Address Details:', data.address);
+      // Ambil alamat dari display_name untuk kolom address
+      let city = '';
+      let province = '';
+      let country = '';
       
-      // Format alamat yang lebih rapi
-      let formattedAddress = '';
-      
+      // Extract city, province, country dari address details
       if (data.address) {
-        const addressParts = [];
-        
-        // Prioritas urutan alamat untuk Indonesia
-        if (data.address.house_number) addressParts.push(data.address.house_number);
-        if (data.address.road) addressParts.push(data.address.road);
-        if (data.address.neighbourhood) addressParts.push(data.address.neighbourhood);
-        if (data.address.suburb) addressParts.push(data.address.suburb);
-        if (data.address.village) addressParts.push(data.address.village);
-        if (data.address.city_district) addressParts.push(data.address.city_district);
-        if (data.address.city || data.address.town || data.address.municipality) {
-          addressParts.push(data.address.city || data.address.town || data.address.municipality);
-        }
-        if (data.address.county) addressParts.push(data.address.county);
-        if (data.address.state) addressParts.push(data.address.state);
-        if (data.address.postcode) addressParts.push(data.address.postcode);
-        
-        formattedAddress = addressParts.join(', ');
+        city = data.address.city || data.address.town || data.address.municipality || '';
+        province = data.address.state || '';
+        country = data.address.country || '';
       }
-      
-      // Fallback ke display_name jika formatted address kosong
-      if (!formattedAddress && data.display_name) {
-        // Bersihkan display_name untuk alamat Indonesia
-        formattedAddress = data.display_name
-          .replace(/,\s*Indonesia$/, '') // Hapus "Indonesia" di akhir
-          .replace(/,\s*\d{5}$/, ''); // Hapus kode pos di akhir jika ada
-      }
-      
-      console.log('=== FORMATTED ADDRESS ===');
-      console.log('Before:', form.alamat);
-      console.log('After:', formattedAddress);
-      console.log('Address Parts Available:', data.address ? Object.keys(data.address) : 'None');
-      console.log('================================');
       
       // Update form dengan alamat yang didapat
       setForm(prev => ({
         ...prev,
-        alamat: formattedAddress || 'Alamat tidak ditemukan'
+        alamat: data.display_name || 'Alamat tidak ditemukan',
+        city: city,
+        province: province,
+        country: country
       }));
       
     } catch (error) {
@@ -692,11 +669,6 @@ const GradeShareForm = ({
 
   // Handler untuk update koordinat dan auto-fill alamat
   const handleCoordinateChange = (newCoord: [number, number]) => {
-    console.log('=== COORDINATE CHANGE ===');
-    console.log('Old coordinates:', form.coord);
-    console.log('New coordinates:', newCoord);
-    console.log('========================');
-    
     setForm(prev => ({ ...prev, coord: newCoord }));
     
     // Auto-fill alamat dari koordinat baru
@@ -714,10 +686,6 @@ const GradeShareForm = ({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        console.log('=== CURRENT LOCATION ===');
-        console.log('Latitude:', latitude);
-        console.log('Longitude:', longitude);
-        console.log('========================');
         
         const newCoord: [number, number] = [latitude, longitude];
         setForm(prev => ({ ...prev, coord: newCoord }));
@@ -738,7 +706,7 @@ const GradeShareForm = ({
     );
   };
 
-  // ...existing submit function...
+  // Submit function
   const submit = async () => {
     // Validasi form
     if (!form.nama.trim()) {
@@ -785,6 +753,9 @@ const GradeShareForm = ({
             lat: form.coord[1],
             type: locationType,
             address: form.alamat,
+            city: form.city,
+            province: form.province,
+            country: form.country,
             img_url: publicUrl,
           },
         ])
