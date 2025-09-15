@@ -1,25 +1,140 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState, useRef} from "react";
+import { useState, useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { useUserStore } from "@/lib/store/user-store";
 import { createClient } from "@/lib/supabase/client";
+import { WasteEducation } from "./waste-education-ai";
+
+// AI Education data interface
+interface AIEducationData {
+  title: string;
+  description: string;
+  environmentalImpact: {
+    positive: string[];
+    negative: string[];
+  };
+  recyclingProcess: {
+    steps: string[];
+    difficulty: string;
+    timeRequired: string;
+  };
+  tips: {
+    reduce: string[];
+    reuse: string[];
+    recycle: string[];
+  };
+  funFacts: string[];
+  economicValue: {
+    price: string;
+    potential: string;
+  };
+  personalizedAdvice: string;
+  generatedAt: string;
+  wasteType: string;
+  confidence: number;
+  isfallback?: boolean;
+}
+
+// Interface untuk hasil analisis basic
+interface BasicAnalysis {
+  namaObjek: string;
+  kategori: string;
+  statusBahaya: string;
+  waktuTerurai: string;
+  produkReuse: string;
+  langkahLangkah: string[];
+  nilaiEkonomi: string;
+}
+
+// Interface untuk response API gabungan
+interface CombinedAnalysisResponse {
+  result: string;
+  isNotTrash: boolean;
+  isDemo: boolean;
+  detectedType: string | null;
+  basicAnalysis: BasicAnalysis | null;
+  aiEducation: AIEducationData | null;
+}
+
+// Interface untuk hasil analisis yang terstruktur (untuk parsing text)
+interface AnalysisResult {
+  namaObjek?: string;
+  kategori?: string;
+  statusBahaya?: string;
+  waktuTerurai?: string;
+  produkReuse?: string;
+  langkahLangkah?: string[];
+  nilaiEkonomi?: string;
+  rawText?: string;
+}
+
+// Fungsi untuk memparse hasil analisis menjadi struktur yang rapi
+const parseAnalysisResult = (result: string): AnalysisResult => {
+  if (!result || result.toLowerCase().includes("objek bukanlah sampah")) {
+    return { rawText: result };
+  }
+
+  const parsed: AnalysisResult = { rawText: result };
+
+  // Parse setiap field
+  const namaMatch = result.match(/Nama objek:\s*([^\n]+)/i);
+  if (namaMatch) parsed.namaObjek = namaMatch[1].trim();
+
+  const kategoriMatch = result.match(/Kategori:\s*([^\n]+)/i);
+  if (kategoriMatch) parsed.kategori = kategoriMatch[1].trim();
+
+  const bahayaMatch = result.match(/Status bahaya:\s*([^\n]+)/i);
+  if (bahayaMatch) parsed.statusBahaya = bahayaMatch[1].trim();
+
+  const waktuMatch = result.match(/Waktu terurai:\s*([^\n]+)/i);
+  if (waktuMatch) parsed.waktuTerurai = waktuMatch[1].trim();
+
+  const reuseMatch = result.match(/Produk reuse:\s*([^\n]+)/i);
+  if (reuseMatch) parsed.produkReuse = reuseMatch[1].trim();
+
+  const ekonomiMatch = result.match(/Nilai ekonomi:\s*([^\n]+)/i);
+  if (ekonomiMatch) parsed.nilaiEkonomi = ekonomiMatch[1].trim();
+
+  // Parse langkah-langkah
+  const langkahSection = result.match(
+    /Langkah-langkah:\s*([\s\S]*?)(?=Nilai ekonomi:|$)/i
+  );
+  if (langkahSection) {
+    const steps = langkahSection[1]
+      .split(/\d+\./)
+      .filter((step) => step.trim())
+      .map((step) => step.trim());
+    parsed.langkahLangkah = steps;
+  }
+
+  return parsed;
+};
 
 export const ScanForm = () => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [basicAnalysis, setBasicAnalysis] = useState<BasicAnalysis | null>(
+    null
+  );
+  const [detectedWasteType, setDetectedWasteType] = useState<string | null>(
+    null
+  );
   const [isNotTrash, setIsNotTrash] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment"); // Default ke kamera belakang
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+    "environment"
+  ); // Default ke kamera belakang
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const user = useUserStore((state) => state.user);
+  const [aiEducation, setAiEducation] = useState<AIEducationData | null>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -28,14 +143,16 @@ export const ScanForm = () => {
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       setAnalysisResult(null);
+      setBasicAnalysis(null);
       setIsNotTrash(false);
+      setAiEducation(null);
     }
   };
 
   const startCamera = async () => {
     setCameraError(null);
     setIsCapturing(true); // Set capturing state immediately to show UI feedback
-    
+
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API not supported in this browser");
@@ -65,7 +182,7 @@ export const ScanForm = () => {
       } catch (backCameraError) {
         console.error("Back camera access failed:", backCameraError);
         console.log("Back camera access failed, trying front camera");
-        
+
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -90,8 +207,10 @@ export const ScanForm = () => {
           }
         } catch (frontCameraError) {
           console.error("Front camera access failed:", frontCameraError);
-          console.log("Front camera access failed, trying generic camera access");
-          
+          console.log(
+            "Front camera access failed, trying generic camera access"
+          );
+
           // Last resort - try generic video access
           try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -142,7 +261,7 @@ export const ScanForm = () => {
   const toggleCamera = async () => {
     // Show loading state or indicator
     setCameraError(null);
-    
+
     // Stop current camera stream
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
@@ -178,12 +297,12 @@ export const ScanForm = () => {
     } catch (error) {
       console.error("Error toggling camera:", error);
       setCameraError("Gagal mengganti kamera. Silakan coba lagi.");
-      
+
       // Try the opposite camera as fallback
       try {
         const fallbackMode = newFacingMode === "user" ? "environment" : "user";
         setFacingMode(fallbackMode);
-        
+
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: fallbackMode,
@@ -191,7 +310,7 @@ export const ScanForm = () => {
             height: { ideal: 720 },
           },
         });
-        
+
         if (videoRef.current) {
           videoRef.current.srcObject = fallbackStream;
           videoRef.current.onloadedmetadata = () => {
@@ -201,11 +320,15 @@ export const ScanForm = () => {
               setIsCapturing(false); // Reset capturing state on error
             });
           };
-          setCameraError("Kamera yang dipilih tidak tersedia, menggunakan kamera alternatif.");
+          setCameraError(
+            "Kamera yang dipilih tidak tersedia, menggunakan kamera alternatif."
+          );
         }
       } catch (fallbackError) {
         console.error("Error with fallback camera:", fallbackError);
-        setCameraError("Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser Anda.");
+        setCameraError(
+          "Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser Anda."
+        );
         setIsCapturing(false); // Reset capturing state on complete failure
       }
     }
@@ -231,6 +354,8 @@ export const ScanForm = () => {
               setSelectedImage(file);
               setPreviewUrl(URL.createObjectURL(file));
               setAnalysisResult(null);
+              setBasicAnalysis(null);
+              setAiEducation(null);
               setIsNotTrash(false);
               stopCamera();
             }
@@ -259,10 +384,173 @@ export const ScanForm = () => {
     }
     setPreviewUrl(null);
     setAnalysisResult(null);
+    setBasicAnalysis(null);
+    setDetectedWasteType(null);
+    setAiEducation(null);
     setIsNotTrash(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  // Enhanced helper function to detect waste type from AI analysis result
+  const detectWasteType = (analysisText: string): string => {
+    const text = analysisText.toLowerCase();
+
+    // Advanced keyword matching with scoring system
+    const wasteKeywords = {
+      botol_plastik: [
+        "botol plastik",
+        "pet bottle",
+        "plastic bottle",
+        "minuman plastik",
+        "aqua",
+        "le minerale",
+        "coca cola",
+        "pepsi",
+        "sprite",
+        "fanta",
+        "botol air",
+        "water bottle",
+        "drinking bottle",
+        "beverage bottle",
+      ],
+      botol_kaca: [
+        "botol kaca",
+        "glass bottle",
+        "wine bottle",
+        "beer bottle",
+        "kaca",
+        "glass",
+        "botol bir",
+        "botol wine",
+        "parfum bottle",
+        "medicine bottle",
+        "syrup bottle",
+        "olive oil bottle",
+      ],
+      kaleng_aluminium: [
+        "kaleng",
+        "aluminium",
+        "aluminum",
+        "can",
+        "soda can",
+        "beverage can",
+        "drink can",
+        "metal can",
+        "soft drink can",
+        "coca cola can",
+        "pepsi can",
+        "beer can",
+        "energy drink can",
+      ],
+      kantong_plastik: [
+        "kantong plastik",
+        "plastic bag",
+        "shopping bag",
+        "kresek",
+        "tas plastik",
+        "kantong belanja",
+        "grocery bag",
+        "carrier bag",
+        "polybag",
+        "plastic sack",
+        "shopping plastic",
+      ],
+      styrofoam: [
+        "styrofoam",
+        "polystyrene",
+        "foam container",
+        "takeaway box",
+        "wadah styrofoam",
+        "kotak makan",
+        "foam box",
+        "disposable container",
+        "white foam",
+        "packaging foam",
+        "insulation foam",
+      ],
+      kertas: [
+        "kertas",
+        "kardus",
+        "koran",
+        "majalah",
+        "buku",
+        "karton",
+        "paper",
+        "cardboard",
+        "newspaper",
+        "magazine",
+        "book",
+        "tissue",
+        "tisu",
+        "nota",
+        "receipt",
+        "packaging paper",
+        "box",
+        "carton",
+        "envelope",
+        "wrapper paper",
+      ],
+      sampah_organik: [
+        "organik",
+        "makanan",
+        "buah",
+        "sayuran",
+        "sisa makanan",
+        "kulit buah",
+        "daun",
+        "ranting",
+        "organic",
+        "food waste",
+        "fruit peel",
+        "vegetable",
+        "apple",
+        "banana",
+        "orange",
+        "tomato",
+        "carrot",
+        "lettuce",
+        "bread",
+        "rice",
+        "nasi",
+      ],
+    };
+
+    // Calculate confidence scores for each waste type
+    const scores: Record<string, number> = {};
+
+    Object.entries(wasteKeywords).forEach(([wasteType, keywords]) => {
+      scores[wasteType] = 0;
+      keywords.forEach((keyword) => {
+        if (text.includes(keyword)) {
+          // Give higher score for more specific matches
+          const specificity = keyword.length > 8 ? 2 : 1;
+          scores[wasteType] += specificity;
+        }
+      });
+    });
+
+    // Find the waste type with highest confidence score
+    let bestMatch = "botol_plastik"; // default
+    let maxScore = 0;
+
+    Object.entries(scores).forEach(([wasteType, score]) => {
+      if (score > maxScore) {
+        maxScore = score;
+        bestMatch = wasteType;
+      }
+    });
+
+    // Log detection results for debugging (remove in production)
+    console.log("AI Analysis Detection:", {
+      analysisText: text,
+      scores,
+      detectedType: bestMatch,
+      confidence: maxScore,
+    });
+
+    return bestMatch;
   };
 
   const handleAnalysis = async () => {
@@ -273,6 +561,7 @@ export const ScanForm = () => {
 
     setIsAnalyzing(true);
     setAnalysisResult(null);
+    setDetectedWasteType(null);
 
     try {
       const toBase64 = (file: File): Promise<string> =>
@@ -298,55 +587,118 @@ export const ScanForm = () => {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as CombinedAnalysisResponse;
       if (data.result) {
         setAnalysisResult(data.result);
         setIsNotTrash(data.isNotTrash || false);
+        setBasicAnalysis(data.basicAnalysis);
+
+        // Set AI education if available from combined response
+        if (data.aiEducation) {
+          setAiEducation(data.aiEducation);
+        }
+
+        // Detect waste type from analysis result
+        if (!data.isNotTrash) {
+          // Use provided type from API if available, otherwise detect from text
+          const wasteType = data.detectedType || detectWasteType(data.result);
+          setDetectedWasteType(wasteType);
+
+          // Log analysis results
+          console.log("🎯 Gemini AI Detection Result:", {
+            originalAnalysis: data.result,
+            detectedType: wasteType,
+            isRealAI: !data.isDemo,
+            hasEducation: !!data.aiEducation,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Show success message for real AI
+          if (!data.isDemo) {
+            console.log("🤖 Real Gemini AI analysis completed successfully!");
+            if (data.aiEducation) {
+              console.log("📚 AI Education included in response!");
+            }
+          }
+        }
       } else {
         setAnalysisResult("Gagal menganalisis gambar.");
         setIsNotTrash(false);
       }
     } catch (err) {
       console.error("Analysis error:", err);
-      setAnalysisResult("Terjadi kesalahan saat analisis. Silakan coba lagi.");
+
+      // Provide more specific error messages
+      let errorMessage = "Terjadi kesalahan saat analisis. ";
+
+      if (err instanceof Error) {
+        if (err.message.includes("500")) {
+          errorMessage +=
+            "Server sedang mengalami gangguan. Silakan coba lagi dalam beberapa saat.";
+        } else if (err.message.includes("network")) {
+          errorMessage += "Periksa koneksi internet Anda dan coba lagi.";
+        } else {
+          errorMessage +=
+            "Silakan coba lagi atau gunakan foto yang lebih jelas.";
+        }
+      } else {
+        errorMessage += "Silakan coba lagi.";
+      }
+
+      setAnalysisResult(errorMessage);
       setIsNotTrash(false);
     } finally {
       setIsAnalyzing(false);
       const fetchMissions = async () => {
-      const supabase = createClient();
-      if (!user?.id) return;
-      const { data, error } = await supabase
-        .from("daily_missions_with_status")
-        .select("*")
-        .eq(`user_id`, user.id)
-        .eq('mission_id', 'b2d3dba2-ef1b-4396-b098-47524b407709')
-        .order("point_reward", { ascending: true });
-      if (error) {
-        console.error("Error fetching missions:", error.message);
-      }
-      if (data?.length == 0) {
-        await supabase
-          .from('user_mission_logs')
-          .insert([
-            { user_id: user.id, mission_id: 'b2d3dba2-ef1b-4396-b098-47524b407709', completed_at : new Date().toISOString(), point_earned:10},
-          ])
-      }
-
-    };
-    fetchMissions()
+        const supabase = createClient();
+        if (!user?.id) return;
+        const { data, error } = await supabase
+          .from("daily_missions_with_status")
+          .select("*")
+          .eq(`user_id`, user.id)
+          .eq("mission_id", "b2d3dba2-ef1b-4396-b098-47524b407709")
+          .order("point_reward", { ascending: true });
+        if (error) {
+          console.error("Error fetching missions:", error.message);
+        }
+        if (data?.length == 0) {
+          await supabase.from("user_mission_logs").insert([
+            {
+              user_id: user.id,
+              mission_id: "b2d3dba2-ef1b-4396-b098-47524b407709",
+              completed_at: new Date().toISOString(),
+              point_earned: 10,
+            },
+          ]);
+        }
+      };
+      fetchMissions();
     }
   };
 
-    
-
   return (
-    <div className=" bg-gray-50 p-4">
-      <div className="max-w-2xl mx-auto py-10">
+    <div className="p-4">
+      <div className="max-w-4xl mx-auto py-10">
         {/* Main Content Card */}
-        <div className="bg-white rounded-lg shadow-sm px-6 py-2">
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 px-6 py-6">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                Scan Sampah
+              </h1>
+            </div>
+            <p className="text-slate-600">
+              Ambil foto sampah untuk mendapat informasi lengkap tentang jenis,
+              dampak lingkungan, cara daur ulang, dan nilai ekonomi
+            </p>
+          </div>
+
           {/* Foto Label */}
           <div className="mb-4">
-            <h2 className="text-sm font-medium text-gray-700 mb-3">Foto Sampah untuk Scan (misal Botol)</h2>
+            <h2 className="text-lg font-semibold text-slate-700 mb-3">
+              Upload Foto Sampah
+            </h2>
 
             {/* Upload Options */}
             <div className="flex gap-2 mb-4">
@@ -455,12 +807,247 @@ export const ScanForm = () => {
           {/* Analysis Result */}
           {analysisResult && (
             <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-800 mb-2">
-                Hasil Analisis AI
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-line">
-                {analysisResult}
-              </div>
+              {isNotTrash ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                    <h3 className="text-sm font-medium text-yellow-800">
+                      Hasil Analisis AI
+                    </h3>
+                  </div>
+                  <div className="text-sm text-yellow-700 mb-3">
+                    <div className="whitespace-pre-line">{analysisResult}</div>
+                  </div>
+                  <div className="text-xs text-yellow-600 bg-yellow-100 p-2 rounded">
+                    💡 <strong>Tips:</strong> Coba foto sampah yang lebih jelas
+                    atau dari sudut yang berbeda untuk hasil analisis yang lebih
+                    akurat.
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* AI Analysis Summary */}
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                      <h3 className="text-sm font-medium text-emerald-800">
+                        Analisis Berhasil
+                      </h3>
+                    </div>
+                    <div className="text-sm text-emerald-700 mb-2">
+                      {(() => {
+                        // Use structured basicAnalysis if available, otherwise parse text
+                        if (basicAnalysis) {
+                          return (
+                            <div className="space-y-3">
+                              {/* Nama & Kategori */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                                  <div className="text-xs font-semibold text-emerald-600 mb-1">
+                                    NAMA OBJEK
+                                  </div>
+                                  <div className="font-medium text-emerald-800">
+                                    {basicAnalysis.namaObjek}
+                                  </div>
+                                </div>
+                                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                  <div className="text-xs font-semibold text-blue-600 mb-1">
+                                    KATEGORI
+                                  </div>
+                                  <div className="font-medium text-blue-800">
+                                    {basicAnalysis.kategori}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Status & Waktu */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                                  <div className="text-xs font-semibold text-orange-600 mb-1">
+                                    STATUS BAHAYA
+                                  </div>
+                                  <div className="font-medium text-orange-800">
+                                    {basicAnalysis.statusBahaya}
+                                  </div>
+                                </div>
+                                <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+                                  <div className="text-xs font-semibold text-red-600 mb-1">
+                                    WAKTU TERURAI
+                                  </div>
+                                  <div className="font-medium text-red-800">
+                                    {basicAnalysis.waktuTerurai}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Reuse Ideas */}
+                              {basicAnalysis.produkReuse && (
+                                <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                                  <div className="text-xs font-semibold text-purple-600 mb-1">
+                                    💡 IDE DAUR ULANG
+                                  </div>
+                                  <div className="font-medium text-purple-800">
+                                    {basicAnalysis.produkReuse}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Langkah-langkah */}
+                              {basicAnalysis.langkahLangkah &&
+                                basicAnalysis.langkahLangkah.length > 0 && (
+                                  <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                                    <div className="text-xs font-semibold text-indigo-600 mb-2">
+                                      📋 LANGKAH-LANGKAH
+                                    </div>
+                                    <ol className="space-y-1">
+                                      {basicAnalysis.langkahLangkah.map(
+                                        (step: string, index: number) => (
+                                          <li
+                                            key={index}
+                                            className="flex items-start gap-2"
+                                          >
+                                            <span className="bg-indigo-200 text-indigo-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                                              {index + 1}
+                                            </span>
+                                            <span className="text-indigo-800 text-xs">
+                                              {step}
+                                            </span>
+                                          </li>
+                                        )
+                                      )}
+                                    </ol>
+                                  </div>
+                                )}
+
+                              {/* Nilai Ekonomi */}
+                              {basicAnalysis.nilaiEkonomi && (
+                                <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                                  <div className="text-xs font-semibold text-green-600 mb-1">
+                                    💰 NILAI EKONOMI
+                                  </div>
+                                  <div className="font-medium text-green-800">
+                                    {basicAnalysis.nilaiEkonomi}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        // Fallback to parsing text if basicAnalysis is not available
+                        const parsed = parseAnalysisResult(analysisResult);
+                        if (!parsed.namaObjek) {
+                          return (
+                            <div className="whitespace-pre-line">
+                              {analysisResult}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-3">
+                            {/* Nama & Kategori */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                                <div className="text-xs font-semibold text-emerald-600 mb-1">
+                                  NAMA OBJEK
+                                </div>
+                                <div className="font-medium text-emerald-800">
+                                  {parsed.namaObjek}
+                                </div>
+                              </div>
+                              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                <div className="text-xs font-semibold text-blue-600 mb-1">
+                                  KATEGORI
+                                </div>
+                                <div className="font-medium text-blue-800">
+                                  {parsed.kategori}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Status & Waktu */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                                <div className="text-xs font-semibold text-orange-600 mb-1">
+                                  STATUS BAHAYA
+                                </div>
+                                <div className="font-medium text-orange-800">
+                                  {parsed.statusBahaya}
+                                </div>
+                              </div>
+                              <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+                                <div className="text-xs font-semibold text-red-600 mb-1">
+                                  WAKTU TERURAI
+                                </div>
+                                <div className="font-medium text-red-800">
+                                  {parsed.waktuTerurai}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Reuse Ideas */}
+                            {parsed.produkReuse && (
+                              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                                <div className="text-xs font-semibold text-purple-600 mb-1">
+                                  💡 IDE DAUR ULANG
+                                </div>
+                                <div className="font-medium text-purple-800">
+                                  {parsed.produkReuse}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Langkah-langkah */}
+                            {parsed.langkahLangkah &&
+                              parsed.langkahLangkah.length > 0 && (
+                                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                                  <div className="text-xs font-semibold text-indigo-600 mb-2">
+                                    📋 LANGKAH-LANGKAH
+                                  </div>
+                                  <ol className="space-y-1">
+                                    {parsed.langkahLangkah.map(
+                                      (step: string, index: number) => (
+                                        <li
+                                          key={index}
+                                          className="flex items-start gap-2"
+                                        >
+                                          <span className="bg-indigo-200 text-indigo-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                                            {index + 1}
+                                          </span>
+                                          <span className="text-indigo-800 text-xs">
+                                            {step}
+                                          </span>
+                                        </li>
+                                      )
+                                    )}
+                                  </ol>
+                                </div>
+                              )}
+
+                            {/* Nilai Ekonomi */}
+                            {parsed.nilaiEkonomi && (
+                              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                                <div className="text-xs font-semibold text-green-600 mb-1">
+                                  💰 NILAI EKONOMI
+                                </div>
+                                <div className="font-medium text-green-800">
+                                  {parsed.nilaiEkonomi}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* AI Education Content */}
+                  {detectedWasteType && aiEducation && (
+                    <WasteEducation aiEducation={aiEducation} />
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -474,7 +1061,6 @@ export const ScanForm = () => {
                 <Button
                   onClick={() => {
                     removeImage();
-                    setAnalysisResult(null);
                   }}
                   variant="outline"
                   className="w-full py-3 text-sm font-medium rounded-full"
@@ -486,7 +1072,6 @@ export const ScanForm = () => {
                 <Button
                   onClick={() => {
                     removeImage();
-                    setAnalysisResult(null);
                   }}
                   variant="outline"
                   className="w-full py-3 text-sm font-medium rounded-full"
