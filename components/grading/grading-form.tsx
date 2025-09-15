@@ -575,6 +575,8 @@ interface Props {
   selectedImage: File;
 }
 
+// ...existing code...
+
 const GradeShareForm = ({
   open,
   setOpen,
@@ -592,8 +594,151 @@ const GradeShareForm = ({
   });
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const user = useUserStore((state) => state.user);
 
+  // Fungsi untuk reverse geocoding
+  const getAddressFromCoordinates = async (lat: number, lon: number) => {
+    setIsLoadingAddress(true);
+    try {
+      // Menggunakan API route internal untuk menghindari CORS
+      const response = await fetch(
+        `/api/geocoding?lat=${lat}&lon=${lon}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch address');
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      console.log('=== REVERSE GEOCODING RESULT ===');
+      console.log('Raw API Response:', data);
+      console.log('Display Name:', data.display_name);
+      console.log('Address Details:', data.address);
+      
+      // Format alamat yang lebih rapi
+      let formattedAddress = '';
+      
+      if (data.address) {
+        const addressParts = [];
+        
+        // Prioritas urutan alamat untuk Indonesia
+        if (data.address.house_number) addressParts.push(data.address.house_number);
+        if (data.address.road) addressParts.push(data.address.road);
+        if (data.address.neighbourhood) addressParts.push(data.address.neighbourhood);
+        if (data.address.suburb) addressParts.push(data.address.suburb);
+        if (data.address.village) addressParts.push(data.address.village);
+        if (data.address.city_district) addressParts.push(data.address.city_district);
+        if (data.address.city || data.address.town || data.address.municipality) {
+          addressParts.push(data.address.city || data.address.town || data.address.municipality);
+        }
+        if (data.address.county) addressParts.push(data.address.county);
+        if (data.address.state) addressParts.push(data.address.state);
+        if (data.address.postcode) addressParts.push(data.address.postcode);
+        
+        formattedAddress = addressParts.join(', ');
+      }
+      
+      // Fallback ke display_name jika formatted address kosong
+      if (!formattedAddress && data.display_name) {
+        // Bersihkan display_name untuk alamat Indonesia
+        formattedAddress = data.display_name
+          .replace(/,\s*Indonesia$/, '') // Hapus "Indonesia" di akhir
+          .replace(/,\s*\d{5}$/, ''); // Hapus kode pos di akhir jika ada
+      }
+      
+      console.log('=== FORMATTED ADDRESS ===');
+      console.log('Before:', form.alamat);
+      console.log('After:', formattedAddress);
+      console.log('Address Parts Available:', data.address ? Object.keys(data.address) : 'None');
+      console.log('================================');
+      
+      // Update form dengan alamat yang didapat
+      setForm(prev => ({
+        ...prev,
+        alamat: formattedAddress || 'Alamat tidak ditemukan'
+      }));
+      
+    } catch (error) {
+      console.error('Error getting address:', error);
+      
+      // Lebih spesifik error handling
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          alert('Koneksi internet bermasalah. Silakan periksa koneksi Anda.');
+        } else if (error.message.includes('rate limit') || error.message.includes('403')) {
+          alert('Terlalu banyak permintaan. Silakan tunggu beberapa saat dan coba lagi.');
+        } else {
+          alert('Gagal mendapatkan alamat dari koordinat. Silakan isi alamat secara manual.');
+        }
+      } else {
+        alert('Gagal mendapatkan alamat dari koordinat. Silakan isi alamat secara manual.');
+      }
+    } finally {
+      setIsLoadingAddress(false);
+    }
+  };
+
+  // Handler untuk update koordinat dan auto-fill alamat
+  const handleCoordinateChange = (newCoord: [number, number]) => {
+    console.log('=== COORDINATE CHANGE ===');
+    console.log('Old coordinates:', form.coord);
+    console.log('New coordinates:', newCoord);
+    console.log('========================');
+    
+    setForm(prev => ({ ...prev, coord: newCoord }));
+    
+    // Auto-fill alamat dari koordinat baru
+    getAddressFromCoordinates(newCoord[0], newCoord[1]);
+  };
+
+  // Fungsi untuk mendapatkan lokasi saat ini
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation tidak didukung di browser ini.');
+      return;
+    }
+
+    setIsLoadingAddress(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        console.log('=== CURRENT LOCATION ===');
+        console.log('Latitude:', latitude);
+        console.log('Longitude:', longitude);
+        console.log('========================');
+        
+        const newCoord: [number, number] = [latitude, longitude];
+        setForm(prev => ({ ...prev, coord: newCoord }));
+        
+        // Auto-fill alamat dari lokasi saat ini
+        getAddressFromCoordinates(latitude, longitude);
+      },
+      (error) => {
+        console.error('Error getting current location:', error);
+        setIsLoadingAddress(false);
+        alert('Gagal mendapatkan lokasi saat ini. Pastikan izin lokasi telah diberikan.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  // ...existing submit function...
   const submit = async () => {
     // Validasi form
     if (!form.nama.trim()) {
@@ -715,12 +860,24 @@ const GradeShareForm = ({
             />
           </div>
           <div>
-            <Label
-              htmlFor="alamat"
-              className="text-sm font-medium text-gray-700"
-            >
-              Alamat <span className="text-red-500">*</span>
-            </Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label
+                htmlFor="alamat"
+                className="text-sm font-medium text-gray-700"
+              >
+                Alamat <span className="text-red-500">*</span>
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={getCurrentLocation}
+                disabled={isLoadingAddress}
+                className="text-xs"
+              >
+                {isLoadingAddress ? "Loading..." : "Lokasi Saat Ini"}
+              </Button>
+            </div>
             <Input
               id="alamat"
               type="text"
@@ -729,11 +886,15 @@ const GradeShareForm = ({
               value={form.alamat}
               onChange={(e) => setForm({ ...form, alamat: e.target.value })}
               className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              disabled={isLoadingAddress}
             />
+            {isLoadingAddress && (
+              <p className="text-xs text-gray-500 mt-1">Sedang mendapatkan alamat...</p>
+            )}
           </div>
           <CoordinatePicker
             value={form.coord}
-            onChange={(newCoord) => setForm({ ...form, coord: newCoord })}
+            onChange={handleCoordinateChange}
           />
           <div className="flex items-center gap-2 justify-end">
             {!loading && (
