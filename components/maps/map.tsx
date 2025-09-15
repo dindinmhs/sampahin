@@ -19,8 +19,9 @@ import SearchLocation from "./search-location";
 import { LocationCleanerType, LocationType } from "@/types/location";
 import CategoryFilter from "./category-filter";
 import ChatSidebar from "@/components/chat-forum/chat-sidebar";
-import { Info, Satellite, Map, MapPin } from "lucide-react"; // Tambahkan import ini
+import { Info, Satellite, Map, MapPin, MessageCircle } from "lucide-react"; // Tambahkan import ini
 import LegendPopup from "./legend-popup"; // Import komponen LegendPopup
+import ChatBotInput from "./chatbot";
 
 interface CleanlinessReport {
   id: number;
@@ -126,6 +127,16 @@ const Maps = () => {
 
   // State untuk mode peta (satelit/normal)
   const [mapMode, setMapMode] = useState<"normal" | "satellite">("normal");
+
+  const [isChatBotOpen, setIsChatBotOpen] = useState(false);
+
+  const handleOpenChatBot = () => {
+    setIsChatBotOpen(true);
+  };
+
+  const handleCloseChatBot = () => {
+    setIsChatBotOpen(false);
+  };
 
   // Handler untuk legend
   const handleOpenLegend = () => {
@@ -408,6 +419,19 @@ const Maps = () => {
           <Info size={20} />
         </button>
       </div>
+
+      <div className="absolute bottom-60 right-2 z-[50]">
+        <button
+          onClick={handleOpenChatBot}
+          className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors flex items-center justify-center"
+          title="Tanya AI Assistant"
+        >
+          <MessageCircle size={24} />
+        </button>
+      </div>
+      {isChatBotOpen && (
+        <ChatBotInput onClose={handleCloseChatBot} />
+      )}
 
       {/* Map Mode Toggle Button - posisi kanan bawah di atas legend */}
       <div className="absolute bottom-36 right-2 z-[50]">

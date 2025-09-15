@@ -706,6 +706,53 @@ const GradeShareForm = ({
     );
   };
 
+  const generateEmbeddings = async (
+    text: string, 
+    imageBase64: string
+  ): Promise<{ textEmbedding: number[] | null; imageEmbedding: number[] | null }> => {
+    try {
+      const response = await fetch('/api/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          imageBase64: imageBase64
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate embeddings');
+      }
+
+      const data = await response.json();
+      return {
+        textEmbedding: data.textEmbedding,
+        imageEmbedding: data.imageEmbedding
+      };
+    } catch (error) {
+      console.error('Error generating embeddings:', error);
+      return {
+        textEmbedding: null,
+        imageEmbedding: null
+      };
+    }
+  };
+
+  // Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   // Submit function
   const submit = async () => {
     // Validasi form
@@ -762,6 +809,33 @@ const GradeShareForm = ({
         .select("id");
       if (!locationRes.data) throw locationRes.error;
 
+      // Prepare text for embedding - gabungkan semua informasi relevan
+      const embeddingText = `
+        Lokasi: ${form.nama}
+        Alamat: ${form.alamat}
+        Kota: ${form.city || 'Tidak diketahui'}
+        Provinsi: ${form.province || 'Tidak diketahui'}
+        Negara: ${form.country || 'Tidak diketahui'}
+        Skor Kebersihan: ${analysis_result?.skor_kebersihan || 0}
+        Grade: ${analysis_result?.grade || 'N/A'}
+        Tipe Lokasi: ${locationType}
+        Deskripsi AI: ${analysis_result?.deskripsi || 'Tidak ada deskripsi'}
+        Koordinat: ${form.coord[0]}, ${form.coord[1]}
+      `.trim();
+
+      // Convert image to base64 for embedding
+      const imageBase64 = await fileToBase64(selectedImage);
+
+      // Generate embeddings
+      console.log('Generating embeddings...');
+      const { textEmbedding, imageEmbedding } = await generateEmbeddings(
+        embeddingText, 
+        imageBase64
+      );
+
+      console.log('Text embedding generated:', textEmbedding ? 'Success' : 'Failed');
+      console.log('Image embedding generated:', imageEmbedding ? 'Success' : 'Failed');
+
       const cleanlinessRes = await supabase
         .from("cleanliness_reports")
         .insert([
@@ -771,6 +845,8 @@ const GradeShareForm = ({
             score: analysis_result?.skor_kebersihan,
             grade: analysis_result?.grade,
             ai_description: analysis_result?.deskripsi,
+            text_embedding: textEmbedding,
+            image_embedding: imageEmbedding,
           },
         ])
         .select();
@@ -778,6 +854,7 @@ const GradeShareForm = ({
       if (cleanlinessRes.error) throw cleanlinessRes.error;
       
       if (cleanlinessRes.data) {
+        console.log('Data saved successfully with embeddings');
         setOpen(false);
         // Redirect ke /map setelah berhasil submit
         window.location.href = "/map";

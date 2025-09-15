@@ -1,0 +1,61 @@
+import { useCallback, useRef, useState } from 'react';
+import { MapsAIAgent } from '../lib/ai-agent/maps-ai-agent';
+
+interface UseMapsAIAgentProps {
+  onShowLocationDetails: (locationId: string, focusMap: boolean) => void;
+  onShowNavigation: (locationId: string, openGoogleMaps: boolean) => void;
+  onHighlightLocations: (locationIds: string[], zoomToFit: boolean, color: string) => void;
+  onFilterCategory: (category: 'all' | 'clean' | 'dirty' | 'cleaning') => void;
+  onSearchLocations: (query: string, filters?: any) => Promise<any[]>;
+  onGetNearbyFacilities: (locationId: string, facilityTypes: string[], radiusKm: number) => Promise<any[]>;
+}
+
+export const useMapsAIAgent = (props: UseMapsAIAgentProps) => {
+  const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const agentRef = useRef<any | null>(null);
+
+  const initializeAgent = useCallback(async () => {
+    if (agentRef.current) return;
+
+    setIsLoading(true);
+    try {
+      const agent = new MapsAIAgent(props);
+      await agent.initialize();
+      agentRef.current = agent;
+      setIsConnected(true);
+      console.log('✅ Maps AI Agent initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize AI Agent:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [props]);
+
+  const sendQuery = useCallback(async (query: string, ragResults?: any[]) => {
+    if (!agentRef.current) {
+      await initializeAgent();
+    }
+    
+    if (agentRef.current) {
+      await agentRef.current.sendQuery(query, ragResults);
+    }
+  }, [initializeAgent]);
+
+  const disconnect = useCallback(() => {
+    if (agentRef.current) {
+      agentRef.current.disconnect();
+      agentRef.current = null;
+      setIsConnected(false);
+      console.log('🔌 Maps AI Agent disconnected');
+    }
+  }, []);
+
+  return {
+    isConnected,
+    isLoading,
+    initializeAgent,
+    sendQuery,
+    disconnect,
+  };
+};
