@@ -588,7 +588,52 @@ export const ScanForm = () => {
       }
 
       const data = (await res.json()) as CombinedAnalysisResponse;
-      if (data.result) {
+
+      console.log("🔥 Frontend received data:", {
+        hasResult: !!data.result,
+        hasBasicAnalysis: !!data.basicAnalysis,
+        hasAiEducation: !!data.aiEducation,
+        isNotTrash: data.isNotTrash,
+        responseKeys: Object.keys(data),
+      });
+
+      // Handle structured response (basicAnalysis + aiEducation) or fallback text response
+      if (data.basicAnalysis && data.aiEducation) {
+        // Structured response - use basicAnalysis for display
+        const analysisText = `Nama objek: ${data.basicAnalysis.namaObjek}
+Kategori: ${data.basicAnalysis.kategori}
+Status bahaya: ${data.basicAnalysis.statusBahaya}
+Waktu terurai: ${data.basicAnalysis.waktuTerurai}`;
+
+        setAnalysisResult(analysisText);
+        setIsNotTrash(data.isNotTrash || false);
+        setBasicAnalysis(data.basicAnalysis);
+        setAiEducation(data.aiEducation);
+
+        console.log("📚 AI Education set successfully!");
+        console.log("✅ All states updated successfully!");
+
+        // Detect waste type from analysis result
+        if (!data.isNotTrash) {
+          // Use category from basicAnalysis
+          const wasteType = data.basicAnalysis.kategori || "Unknown";
+          setDetectedWasteType(wasteType);
+
+          // Log analysis results
+          console.log("🎯 Structured AI Analysis Result:", {
+            objectName: data.basicAnalysis.namaObjek,
+            category: data.basicAnalysis.kategori,
+            hasEducation: !!data.aiEducation,
+            timestamp: new Date().toISOString(),
+          });
+
+          console.log(
+            "🤖 Structured Gemini AI analysis completed successfully!"
+          );
+          console.log("📚 AI Education data included!");
+        }
+      } else if (data.result) {
+        // Fallback text response
         setAnalysisResult(data.result);
         setIsNotTrash(data.isNotTrash || false);
         setBasicAnalysis(data.basicAnalysis);
@@ -596,7 +641,10 @@ export const ScanForm = () => {
         // Set AI education if available from combined response
         if (data.aiEducation) {
           setAiEducation(data.aiEducation);
+          console.log("📚 AI Education set successfully!");
         }
+
+        console.log("✅ All states updated successfully!");
 
         // Detect waste type from analysis result
         if (!data.isNotTrash) {
@@ -622,6 +670,8 @@ export const ScanForm = () => {
           }
         }
       } else {
+        // No valid analysis data received
+        console.error("❌ No valid analysis data received:", data);
         setAnalysisResult("Gagal menganalisis gambar.");
         setIsNotTrash(false);
       }
