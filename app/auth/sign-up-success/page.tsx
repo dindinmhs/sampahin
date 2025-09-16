@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { CheckCircle, Mail, ChevronDown, Globe } from "lucide-react";
+import { CheckCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Page() {
