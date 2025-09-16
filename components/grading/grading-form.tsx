@@ -584,16 +584,176 @@ const GradeShareForm = ({
   const [form, setForm] = useState<{
     nama: string;
     alamat: string;
+    city: string;
+    province: string;
+    country: string;
     coord: [number, number];
   }>({
     nama: "",
     alamat: "",
+    city: "",
+    province: "",
+    country: "",
     coord: [-6.89794, 107.63576],
   });
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const user = useUserStore((state) => state.user);
 
+  // Fungsi untuk reverse geocoding
+  const getAddressFromCoordinates = async (lat: number, lon: number) => {
+    setIsLoadingAddress(true);
+    try {
+      // Menggunakan API route internal untuk menghindari CORS
+      const response = await fetch(
+        `/api/geocoding?lat=${lat}&lon=${lon}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch address');
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Ambil alamat dari display_name untuk kolom address
+      let city = '';
+      let province = '';
+      let country = '';
+      
+      // Extract city, province, country dari address details
+      if (data.address) {
+        city = data.address.city || data.address.town || data.address.municipality || '';
+        province = data.address.state || '';
+        country = data.address.country || '';
+      }
+      
+      // Update form dengan alamat yang didapat
+      setForm(prev => ({
+        ...prev,
+        alamat: data.display_name || 'Alamat tidak ditemukan',
+        city: city,
+        province: province,
+        country: country
+      }));
+      
+    } catch (error) {
+      console.error('Error getting address:', error);
+      
+      // Lebih spesifik error handling
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          alert('Koneksi internet bermasalah. Silakan periksa koneksi Anda.');
+        } else if (error.message.includes('rate limit') || error.message.includes('403')) {
+          alert('Terlalu banyak permintaan. Silakan tunggu beberapa saat dan coba lagi.');
+        } else {
+          alert('Gagal mendapatkan alamat dari koordinat. Silakan isi alamat secara manual.');
+        }
+      } else {
+        alert('Gagal mendapatkan alamat dari koordinat. Silakan isi alamat secara manual.');
+      }
+    } finally {
+      setIsLoadingAddress(false);
+    }
+  };
+
+  // Handler untuk update koordinat dan auto-fill alamat
+  const handleCoordinateChange = (newCoord: [number, number]) => {
+    setForm(prev => ({ ...prev, coord: newCoord }));
+    
+    // Auto-fill alamat dari koordinat baru
+    getAddressFromCoordinates(newCoord[0], newCoord[1]);
+  };
+
+  // Fungsi untuk mendapatkan lokasi saat ini
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation tidak didukung di browser ini.');
+      return;
+    }
+
+    setIsLoadingAddress(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        const newCoord: [number, number] = [latitude, longitude];
+        setForm(prev => ({ ...prev, coord: newCoord }));
+        
+        // Auto-fill alamat dari lokasi saat ini
+        getAddressFromCoordinates(latitude, longitude);
+      },
+      (error) => {
+        console.error('Error getting current location:', error);
+        setIsLoadingAddress(false);
+        alert('Gagal mendapatkan lokasi saat ini. Pastikan izin lokasi telah diberikan.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  const generateEmbeddings = async (
+    text: string, 
+    imageBase64: string
+  ): Promise<{ textEmbedding: number[] | null; imageEmbedding: number[] | null }> => {
+    try {
+      const response = await fetch('/api/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          imageBase64: imageBase64
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate embeddings');
+      }
+
+      const data = await response.json();
+      return {
+        textEmbedding: data.textEmbedding,
+        imageEmbedding: data.imageEmbedding
+      };
+    } catch (error) {
+      console.error('Error generating embeddings:', error);
+      return {
+        textEmbedding: null,
+        imageEmbedding: null
+      };
+    }
+  };
+
+  // Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // Submit function
   const submit = async () => {
     // Validasi form
     if (!form.nama.trim()) {
@@ -640,11 +800,41 @@ const GradeShareForm = ({
             lat: form.coord[1],
             type: locationType,
             address: form.alamat,
+            city: form.city,
+            province: form.province,
+            country: form.country,
             img_url: publicUrl,
           },
         ])
         .select("id");
       if (!locationRes.data) throw locationRes.error;
+
+      // Prepare text for embedding - gabungkan semua informasi relevan
+      const embeddingText = `
+        Lokasi: ${form.nama}
+        Alamat: ${form.alamat}
+        Kota: ${form.city || 'Tidak diketahui'}
+        Provinsi: ${form.province || 'Tidak diketahui'}
+        Negara: ${form.country || 'Tidak diketahui'}
+        Skor Kebersihan: ${analysis_result?.skor_kebersihan || 0}
+        Grade: ${analysis_result?.grade || 'N/A'}
+        Tipe Lokasi: ${locationType}
+        Deskripsi AI: ${analysis_result?.deskripsi || 'Tidak ada deskripsi'}
+        Koordinat: ${form.coord[0]}, ${form.coord[1]}
+      `.trim();
+
+      // Convert image to base64 for embedding
+      const imageBase64 = await fileToBase64(selectedImage);
+
+      // Generate embeddings
+      console.log('Generating embeddings...');
+      const { textEmbedding, imageEmbedding } = await generateEmbeddings(
+        embeddingText, 
+        imageBase64
+      );
+
+      console.log('Text embedding generated:', textEmbedding ? 'Success' : 'Failed');
+      console.log('Image embedding generated:', imageEmbedding ? 'Success' : 'Failed');
 
       const cleanlinessRes = await supabase
         .from("cleanliness_reports")
@@ -655,6 +845,8 @@ const GradeShareForm = ({
             score: analysis_result?.skor_kebersihan,
             grade: analysis_result?.grade,
             ai_description: analysis_result?.deskripsi,
+            text_embedding: textEmbedding,
+            image_embedding: imageEmbedding,
           },
         ])
         .select();
@@ -662,6 +854,7 @@ const GradeShareForm = ({
       if (cleanlinessRes.error) throw cleanlinessRes.error;
       
       if (cleanlinessRes.data) {
+        console.log('Data saved successfully with embeddings');
         setOpen(false);
         // Redirect ke /map setelah berhasil submit
         window.location.href = "/map";
@@ -715,12 +908,24 @@ const GradeShareForm = ({
             />
           </div>
           <div>
-            <Label
-              htmlFor="alamat"
-              className="text-sm font-medium text-gray-700"
-            >
-              Alamat <span className="text-red-500">*</span>
-            </Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label
+                htmlFor="alamat"
+                className="text-sm font-medium text-gray-700"
+              >
+                Alamat <span className="text-red-500">*</span>
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={getCurrentLocation}
+                disabled={isLoadingAddress}
+                className="text-xs"
+              >
+                {isLoadingAddress ? "Loading..." : "Lokasi Saat Ini"}
+              </Button>
+            </div>
             <Input
               id="alamat"
               type="text"
@@ -729,11 +934,15 @@ const GradeShareForm = ({
               value={form.alamat}
               onChange={(e) => setForm({ ...form, alamat: e.target.value })}
               className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              disabled={isLoadingAddress}
             />
+            {isLoadingAddress && (
+              <p className="text-xs text-gray-500 mt-1">Sedang mendapatkan alamat...</p>
+            )}
           </div>
           <CoordinatePicker
             value={form.coord}
-            onChange={(newCoord) => setForm({ ...form, coord: newCoord })}
+            onChange={handleCoordinateChange}
           />
           <div className="flex items-center gap-2 justify-end">
             {!loading && (
