@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { MapsAIAgent } from '../lib/ai-agent/maps-ai-agent';
+import { AIAgentService } from '../lib/ai-agent/maps-ai-agent';
 
-interface UseMapsAIAgentProps {
+interface UseAIAgentServiceProps {
   onShowLocationDetails: (locationId: string, focusMap: boolean) => void;
   onShowNavigation: (locationId: string, openGoogleMaps: boolean) => void;
   onHighlightLocations: (locationIds: string[], zoomToFit: boolean, color: string) => void;
@@ -10,7 +10,7 @@ interface UseMapsAIAgentProps {
   onGetNearbyFacilities: (locationId: string, facilityTypes: string[], radiusKm: number) => Promise<any[]>;
 }
 
-export const useMapsAIAgent = (props: UseMapsAIAgentProps) => {
+export const useMapsAIAgent = (props: UseAIAgentServiceProps) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const agentRef = useRef<any | null>(null);
@@ -20,7 +20,7 @@ export const useMapsAIAgent = (props: UseMapsAIAgentProps) => {
 
     setIsLoading(true);
     try {
-      const agent = new MapsAIAgent(props);
+      const agent = new AIAgentService(props);
       await agent.initialize();
       agentRef.current = agent;
       setIsConnected(true);

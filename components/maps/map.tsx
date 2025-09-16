@@ -20,8 +20,8 @@ import { LocationCleanerType, LocationType } from "@/types/location";
 import CategoryFilter from "./category-filter";
 import ChatSidebar from "@/components/chat-forum/chat-sidebar";
 import { Info, Satellite, Map, MapPin, MessageCircle } from "lucide-react"; // Tambahkan import ini
-import LegendPopup from "./legend-popup"; // Import komponen LegendPopup
-import ChatBotInput from "./chatbot";
+import LegendPopup from "./legend-popup";
+import ChatBotFloating from "./chatbot";
 
 interface CleanlinessReport {
   id: number;
@@ -129,6 +129,8 @@ const Maps = () => {
   const [mapMode, setMapMode] = useState<"normal" | "satellite">("normal");
 
   const [isChatBotOpen, setIsChatBotOpen] = useState(false);
+
+  const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
 
   const handleOpenChatBot = () => {
     setIsChatBotOpen(true);
@@ -373,13 +375,91 @@ const Maps = () => {
     }
   };
 
-  // Tambahkan handler untuk membuka/menutup chat
-  // const handleOpenChat = () => {
-  //   setIsChatOpen(true);
-  // };
-
   const handleCloseChat = () => {
     setIsChatOpen(false);
+  };
+
+  const handleLocationDetails = (locationId: string, focusMap: boolean) => {
+    const location = locations.find(loc => loc.id === locationId);
+    if (location) {
+      setSelectedLocation(location);
+      setIsSidebarOpen(true);
+      
+      if (focusMap && mapRef) {
+        mapRef.setView([location.lan, location.lat], 16, { animate: true });
+      }
+    }
+  };
+
+  const handleNavigateToLocation = (locationId: string, transportMode: string) => {
+    const location = locations.find(loc => loc.id === locationId);
+    if (location && userLocation) {
+      setSelectedLocation(location);
+      setNavigationTarget(location);
+      setIsNavigating(true);
+      
+      if (mapRef) {
+        mapRef.setView([location.lan, location.lat], 16, { animate: true });
+      }
+    }
+  };
+
+  const handleHighlightLocations = (locationIds: string[], highlightType: string) => {
+    setHighlightedLocations(locationIds);
+    
+    // Auto remove highlight after 5 seconds
+    setTimeout(() => {
+      setHighlightedLocations([]);
+    }, 5000);
+  };
+
+  const handleSetMapFilter = (filter: string) => {
+    setCategoryFilter(filter as "all" | "clean" | "dirty" | "cleaning");
+  };
+
+  const handleFindNearby = (coordinates?: [number, number], radiusKm?: number, filterType?: string) => {
+    const searchCenter = coordinates || userLocation;
+    if (!searchCenter) return;
+
+    // Filter locations by distance and type
+    const nearbyLocations = locations.filter(loc => {
+      const distance = getDistanceMeters(
+        searchCenter[0], searchCenter[1],
+        loc.lan, loc.lat
+      ) / 1000; // Convert to km
+
+      const withinRadius = distance <= (radiusKm || 5);
+      const matchesType = !filterType || 
+        (filterType === 'clean' && isCleanLocation(loc.id)) ||
+        (filterType === 'dirty' && !isCleanLocation(loc.id) && loc.type !== 'cleaning') ||
+        (filterType === 'cleaning' && loc.type === 'cleaning');
+
+      return withinRadius && matchesType;
+    });
+
+    // Highlight nearby locations
+    setHighlightedLocations(nearbyLocations.map(loc => loc.id));
+    
+    // Focus map to show area
+    if (mapRef && nearbyLocations.length > 0) {
+      const bounds = L.latLngBounds(nearbyLocations.map(loc => [loc.lan, loc.lat]));
+      mapRef.fitBounds(bounds, { padding: [20, 20] });
+    }
+  };
+
+  const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon1-lon2) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
   };
 
   return (
@@ -430,7 +510,16 @@ const Maps = () => {
         </button>
       </div>
       {isChatBotOpen && (
-        <ChatBotInput onClose={handleCloseChatBot} />
+        <ChatBotFloating 
+          isOpen={isChatBotOpen} 
+          onToggle={handleCloseChatBot}
+          onLocationDetails={handleLocationDetails}
+          onNavigate={handleNavigateToLocation}
+          onHighlightLocations={handleHighlightLocations}
+          onSetMapFilter={handleSetMapFilter}
+          onFindNearby={handleFindNearby}
+          userLocation={userLocation}
+        />
       )}
 
       {/* Map Mode Toggle Button - posisi kanan bawah di atas legend */}

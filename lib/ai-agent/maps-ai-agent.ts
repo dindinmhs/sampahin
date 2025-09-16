@@ -1,12 +1,6 @@
-import { mapsFunctionDefinitions } from '@/definitions';
-import {
-  GoogleGenAI,
-  LiveServerMessage,
-  MediaResolution,
-  Modality,
-  Session,
-  Type,
-} from '@google/genai';
+import { functionDefinitions } from '@/lib/ai-agent/definitions';
+import { GoogleGenAI, LiveServerMessage, MediaResolution, Modality, Session } from '@google/genai';
+import { AudioProcessor } from './audio-utils';
 
 interface RAGResult {
   report_id: string;
@@ -28,306 +22,553 @@ interface RAGResult {
   image_similarity?: number;
 }
 
-interface AIAgentCallbacks {
-  onShowLocationDetails: (locationId: string, focusMap: boolean) => void;
-  onShowNavigation: (locationId: string, openGoogleMaps: boolean) => void;
-  onHighlightLocations: (locationIds: string[], zoomToFit: boolean, color: string) => void;
-  onFilterCategory: (category: 'all' | 'clean' | 'dirty' | 'cleaning') => void;
-  onSearchLocations: (query: string, filters?: any) => Promise<RAGResult[]>;
-  onGetNearbyFacilities: (locationId: string, facilityTypes: string[], radiusKm: number) => Promise<any[]>;
+interface AIAgentConfig {
+  onLocationDetails: (locationId: string, focusMap: boolean) => void;
+  onNavigate: (locationId: string, transportMode: string) => void;
+  onHighlightLocations: (locationIds: string[], highlightType: string) => void;
+  onSetMapFilter: (filter: string) => void;
+  onFindNearby: (coordinates?: [number, number], radiusKm?: number, filterType?: string) => void;
+  onAudioGenerated: (audioData: string) => void;
+  userLocation?: [number, number];
 }
 
-export class MapsAIAgent {
+export class AIAgentService {
   private session: Session | undefined;
   private responseQueue: LiveServerMessage[] = [];
-  private audioParts: string[] = [];
-  private callbacks: AIAgentCallbacks;
-  private ragResults: RAGResult[] = [];
+  private config: AIAgentConfig;
+  private isConnected: boolean = false;
+  private isConnecting: boolean = false;
+  private connectionAttempts: number = 0;
+  private maxConnectionAttempts: number = 3;
+  private isProcessing: boolean = false;
+  private audioChunks: string[] = [];
+  private isPlayingAudio: boolean = false;
 
-  constructor(callbacks: AIAgentCallbacks) {
-    this.callbacks = callbacks;
+  constructor(config: AIAgentConfig) {
+    this.config = config;
   }
 
   async initialize() {
-    const ai = new GoogleGenAI({
-      apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '',
-    });
+    if (this.isConnecting || this.isConnected) {
+      console.log('AI Agent already connecting or connected');
+      return;
+    }
 
-    const model = 'models/gemini-2.5-flash-preview-native-audio-dialog';
+    this.isConnecting = true;
+    this.connectionAttempts++;
 
-    const tools = [
-      {
-        functionDeclarations: mapsFunctionDefinitions,
-      }
-    ];
+    try {
+      const ai = new GoogleGenAI({
+        apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '',
+      });
 
-    const config = {
-      responseModalities: [Modality.AUDIO],
-      mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: 'Puck',
-          }
-        }
-      },
-      contextWindowCompression: {
-        triggerTokens: '25600',
-        slidingWindow: { targetTokens: '12800' },
-      },
-      tools,
-    };
+      const model = 'models/gemini-2.5-flash-preview-native-audio-dialog';
+      const tools = [{ functionDeclarations: functionDefinitions }];
 
-    this.session = await ai.live.connect({
-      model,
-      callbacks: {
-        onopen: () => {
-          console.log('🤖 AI Agent connected');
+      const sessionConfig = {
+        responseModalities: [Modality.AUDIO],
+        mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
         },
-        onmessage: (message: LiveServerMessage) => {
-          this.responseQueue.push(message);
-        },
-        onerror: (e: ErrorEvent) => {
-          console.error('❌ AI Agent error:', e.message);
-        },
-        onclose: (e: CloseEvent) => {
-          console.log('🔌 AI Agent disconnected:', e.reason);
-        },
-      },
-      config
-    });
+        tools,
+        systemInstruction: "You are a voice assistant. Always respond with audio. Provide helpful, detailed information in Indonesian based on the RAG data provided. Your audio response should be at least 3-5 seconds long."
+      };
 
-    // Send initial context with system prompt
-    await this.sendSystemPrompt();
+      console.log('🔧 Initializing AI Agent with config:', sessionConfig);
+
+      this.session = await ai.live.connect({
+        model,
+        callbacks: {
+          onopen: () => {
+            console.debug('✅ AI Agent session opened');
+            this.isConnected = true;
+            this.isConnecting = false;
+            this.connectionAttempts = 0;
+            this.responseQueue = [];
+          },
+          onmessage: (message: LiveServerMessage) => {
+            this.responseQueue.push(message);
+          },
+          onerror: (e: ErrorEvent) => {
+            console.error('❌ AI Agent error:', e.message);
+            this.isConnected = false;
+            this.isConnecting = false;
+            this.isProcessing = false;
+          },
+          onclose: (e: CloseEvent) => {
+            console.debug('🔒 AI Agent session closed:', e.reason);
+            this.isConnected = false;
+            this.isConnecting = false;
+            this.isProcessing = false;
+            this.session = undefined;
+          },
+        },
+        config: sessionConfig
+      });
+
+      await this.waitForConnection();
+    } catch (error) {
+      console.error('❌ Failed to initialize AI Agent:', error);
+      this.isConnecting = false;
+      this.isProcessing = false;
+      throw error;
+    }
   }
 
-  private async sendSystemPrompt() {
-    const systemPrompt = `# Sampahin Maps AI Assistant
-
-Anda adalah AI assistant untuk aplikasi Sampahin Maps yang membantu pengguna menjelajahi dan mencari informasi tentang kebersihan lingkungan di Indonesia.
-
-## Kemampuan Anda:
-1. **Mencari Lokasi** - Cari tempat berdasarkan nama, alamat, atau kondisi kebersihan
-2. **Menampilkan Detail** - Buka sidebar dengan informasi lengkap lokasi
-3. **Navigasi** - Berikan rute ke lokasi tujuan
-4. **Highlight Marker** - Tandai lokasi tertentu di peta
-5. **Filter Kategori** - Ubah tampilan peta berdasarkan jenis lokasi
-6. **Fasilitas Terdekat** - Cari toilet, tempat sampah, dll di sekitar lokasi
-
-## Data RAG Context:
-${this.formatRAGContext()}
-
-## Instruksi:
-- Gunakan function calls untuk setiap permintaan user
-- Berikan informasi berdasarkan data RAG yang tersedia
-- Jawab dalam bahasa Indonesia yang ramah dan informatif
-- Jelaskan grade kebersihan: A=Sangat Bersih, B=Bersih, C=Cukup, D=Kotor, E=Sangat Kotor
-- Sebutkan skor kebersihan dan kondisi terbaru
-- Berikan rekomendasi yang actionable`;
-
-    this.session?.sendClientContent({
-      turns: [systemPrompt]
+  private async waitForConnection(timeout: number = 10000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      const checkConnection = () => {
+        if (this.isConnected) resolve();
+        else if (Date.now() - startTime > timeout) reject(new Error('Connection timeout'));
+        else setTimeout(checkConnection, 100);
+      };
+      checkConnection();
     });
   }
 
-  private formatRAGContext(): string {
-    if (this.ragResults.length === 0) {
-      return "Belum ada data lokasi yang dimuat.";
+  private async ensureConnection(): Promise<boolean> {
+    if (this.isConnected && this.session) return true;
+    if (this.connectionAttempts >= this.maxConnectionAttempts) {
+      console.error('Max connection attempts reached');
+      return false;
     }
-
-    return this.ragResults.map((result, index) => 
-      `Lokasi ${index + 1}: ${result.location_name}
-- ID: ${result.location_id}
-- Alamat: ${result.address}, ${result.city}, ${result.province}
-- Grade: ${result.grade} (Skor: ${result.score}/100)
-- Tipe: ${result.type === 'clean' ? 'Bersih' : result.type === 'dirty' ? 'Kotor' : 'Sedang Dibersihkan'}
-- Kondisi: ${result.ai_description}
-- Koordinat: [${result.lan}, ${result.lat}]
-- Similarity: ${(result.similarity_score * 100).toFixed(1)}%`
-    ).join('\n\n');
+    try {
+      await this.initialize();
+      return this.isConnected;
+    } catch (error) {
+      console.error('Failed to reconnect:', error);
+      return false;
+    }
   }
 
-  async sendQuery(query: string, ragResults?: RAGResult[]) {
-    if (ragResults) {
-      this.ragResults = ragResults;
-      await this.sendSystemPrompt(); // Update context with new RAG data
+  async sendMessage(text: string, imageBase64?: string, ragResults?: RAGResult[]) {
+    if (this.isProcessing) {
+      console.log('Already processing a message, skipping...');
+      return;
     }
 
-    this.session?.sendClientContent({
-      turns: [query]
+    const connectionReady = await this.ensureConnection();
+    if (!connectionReady || !this.session) {
+      throw new Error('AI Agent session not available');
+    }
+
+    this.isProcessing = true;
+    this.responseQueue = [];
+    this.audioChunks = []; // Reset chunks for new message
+
+    try {
+      const ragContext = this.buildRAGContext(ragResults);
+      const systemPrompt = this.buildSystemPrompt(ragContext);
+      const fullPrompt = `${systemPrompt}\n\nUser Query: ${text}`;
+
+      console.log('📤 Sending to AI Agent:', { text, hasImage: !!imageBase64, ragResultsCount: ragResults?.length || 0 });
+
+      this.session.sendClientContent({ turns: [fullPrompt] });
+
+      await Promise.race([
+        this.handleTurn(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Response timeout')), 30000))
+      ]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      this.isConnected = false;
+      this.session = undefined;
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  private buildRAGContext(ragResults?: RAGResult[]): string {
+    if (!ragResults || ragResults.length === 0) return "Tidak ada data lokasi yang relevan ditemukan.";
+    let context = `Data lokasi yang relevan berdasarkan pencarian:\n\n`;
+    ragResults.forEach((result, index) => {
+      context += `${index + 1}. **${result.location_name}**\n   - ID: ${result.location_id}\n   - Alamat: ${result.address}, ${result.city}\n   - Grade: ${result.grade} (Skor: ${result.score}/100)\n\n`;
     });
-
-    await this.handleTurn();
+    return context;
   }
 
-  private async handleTurn(): Promise<LiveServerMessage[]> {
-    const turn: LiveServerMessage[] = [];
-    let done = false;
-    while (!done) {
-      const message = await this.waitMessage();
-      turn.push(message);
-      if (message.serverContent && message.serverContent.turnComplete) {
-        done = true;
-      }
-    }
-    return turn;
-  }
+  private buildSystemPrompt(ragContext: string): string {
+  const userLocationInfo = this.config.userLocation 
+    ? `Lokasi user saat ini: [${this.config.userLocation[0]}, ${this.config.userLocation[1]}]` 
+    : "Lokasi user tidak diketahui";
 
-  private async waitMessage(): Promise<LiveServerMessage> {
-    let done = false;
-    let message: LiveServerMessage | undefined = undefined;
-    while (!done) {
-      message = this.responseQueue.shift();
-      if (message) {
-        await this.handleModelTurn(message);
-        done = true;
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    }
-    return message!;
-  }
+  return `# Sampahin AI Assistant - Voice & Function Interface
 
-  private async handleModelTurn(message: LiveServerMessage) {
-    // Handle function calls
-    if (message.toolCall) {
-      console.log('🔧 Function calls:', message.toolCall.functionCalls);
+CRITICAL RULES:
+1. ALWAYS respond with AUDIO (minimum 3-5 seconds in Indonesian)
+2. ALWAYS call appropriate functions based on user requests
+3. NEVER just give audio without function calls
+
+## Your Identity:
+Voice assistant untuk aplikasi Sampahin - monitoring kebersihan lingkungan.
+
+## Context:
+${userLocationInfo}
+
+## Available Data:
+${ragContext}
+
+## FUNCTION CALL MAPPING - MANDATORY:
+
+### User wants location details:
+- Keywords: "detail", "info", "tampilkan", "lihat", "buka", "informasi"
+- MUST CALL: show_location_details(location_id_from_RAG, focus_map: true)
+
+### User wants navigation:
+- Keywords: "rute", "arah", "navigasi", "jalan", "pergi ke", "carikan jalan"
+- MUST CALL: navigate_to_location(location_id_from_RAG, transport_mode: "driving")
+
+### User wants to see/highlight locations:
+- Keywords: "tunjukkan", "sorot", "highlight", "tampilkan di peta"
+- MUST CALL: highlight_locations([location_ids_from_RAG], highlight_type: "pulse")
+
+### User wants to filter:
+- Keywords: "filter", "tampilkan hanya", "sembunyikan", "kategori"
+- MUST CALL: set_map_filter(filter_type)
+
+### User wants nearby search:
+- Keywords: "terdekat", "sekitar", "dekat", "radius", "cari"
+- MUST CALL: find_nearby_locations(coordinates, radius_km: 5, filter_type)
+
+## RESPONSE PROTOCOL:
+
+1. **Analyze** user intent and identify which function to call
+2. **Extract** parameters from RAG data (use exact location_id values)
+3. **Call** the appropriate function immediately
+4. **Speak** your response explaining what you're doing
+
+## EXAMPLES:
+
+**Input**: "Tampilkan detail mall itu"
+**Actions**:
+- Audio: "Halo! Saya akan menampilkan detail mall untuk Anda. Mari saya buka informasinya."
+- Function: show_location_details("mall_location_id_from_RAG", true)
+
+**Input**: "Carikan jalan ke tempat kotor terdekat"
+**Actions**:
+- Audio: "Baik, saya akan mencarikan rute ke lokasi kotor terdekat. Mari saya buka navigasinya."
+- Function: navigate_to_location("dirty_location_id_from_RAG", "driving")
+
+## DATA EXTRACTION:
+From RAG results, extract:
+- location_id: result.location_id (EXACT VALUE)
+- coordinates: [result.lat, result.lan] 
+- grade/type: result.grade, result.type
+
+## CRITICAL:
+- ALWAYS call functions with EXACT location_id from RAG data
+- NEVER make up location IDs
+- ALWAYS provide audio explanation
+- Use natural Indonesian speech
+
+Remember: You are BOTH voice assistant AND function executor!`;
+}
+
+  private async handleTurn(): Promise<void> {
+  let done = false;
+  let messageCount = 0;
+  const maxMessages = 1000000;
+  let lastAudioChunkTime = Date.now();
+  
+  while (!done && messageCount < maxMessages) {
+    try {
+      const message = await this.waitMessage(120000);
+      messageCount++;
       
-      const functionResponses = await Promise.all(
-        message.toolCall.functionCalls?.map(async (functionCall) => {
-          const response = await this.executeFunctionCall(functionCall);
-          return {
-            id: functionCall.id,
-            name: functionCall.name,
-            response: { response }
-          };
-        }) ?? []
-      );
+      // Track when we last received audio
+      if (message.serverContent?.modelTurn?.parts?.some(part => 
+        part?.inlineData?.mimeType?.includes('audio'))) {
+        lastAudioChunkTime = Date.now();
+      }
+      
+      if (message.serverContent?.turnComplete) {
+        console.log('🏁 Turn completed flag received.');
+        done = true;
+      }
+      
+      // Safety: if no audio chunks for 2 seconds and we have some audio, process it
+      if (this.audioChunks.length > 0 && 
+          Date.now() - lastAudioChunkTime > 60000) {
+        console.log('⏰ No new audio chunks for 2 seconds, processing existing audio');
+        this.processCompleteAudio();
+        done = true;
+      }
+      
+    } catch (error) {
+      console.error('Error in handleTurn:', error);
+      done = true;
+    }
+  }
+  
+  if (messageCount >= maxMessages) {
+    console.warn('⚠️ Max messages reached, ending turn');
+    // Process any remaining audio
+    if (this.audioChunks.length > 0) {
+      this.processCompleteAudio();
+    }
+  }
+}
 
-      this.session?.sendToolResponse({
+  private async waitMessage(timeout: number = 5000): Promise<LiveServerMessage> {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      const checkMessage = () => {
+        const message = this.responseQueue.shift();
+        if (message) {
+          this.handleModelTurn(message);
+          resolve(message);
+        } else if (Date.now() - startTime > timeout) {
+          reject(new Error('Message timeout in waitMessage'));
+        } else {
+          setTimeout(checkMessage, 50);
+        }
+      };
+      checkMessage();
+    });
+  }
+
+  private handleModelTurn(message: LiveServerMessage) {
+  console.log('📨 Complete message structure:', JSON.stringify(message, null, 2));
+
+  // Debug toolCall specifically
+  console.log('🔍 Checking for toolCall:', {
+    hasToolCall: !!message.toolCall,
+    toolCallKeys: message.toolCall ? Object.keys(message.toolCall) : [],
+    toolCallContent: message.toolCall
+  });
+
+  // Handle function calls first with enhanced debugging
+  if (message.toolCall?.functionCalls) {
+    console.log('🔧 Function calls found:', {
+      count: message.toolCall.functionCalls.length,
+      calls: message.toolCall.functionCalls
+    });
+    
+    message.toolCall.functionCalls.forEach((call, index) => {
+      console.log(`🎯 Executing function ${index}:`, {
+        name: call.name,
+        args: call.args,
+        id: call.id
+      });
+      if (call.name) {
+        this.executeFunctionCall(call.name, call.args);
+      }
+    });
+
+    if (this.session) {
+      const functionResponses = message.toolCall.functionCalls.map(call => ({
+        id: call.id,
+        name: call.name,
+        response: { response: 'Function executed successfully' }
+      }));
+      
+      console.log('📤 Sending tool responses:', functionResponses);
+      
+      this.session.sendToolResponse({
         functionResponses
       });
     }
-
-    // Handle audio response
+  } else {
+    console.log('⚠️ No function calls found in message');
+    
+    // Additional debugging for missed function calls
     if (message.serverContent?.modelTurn?.parts) {
-      const part = message.serverContent?.modelTurn?.parts?.[0];
+      message.serverContent.modelTurn.parts.forEach((part, index) => {
+        console.log(`Part ${index} analysis:`, {
+          hasText: !!part.text,
+          textContent: part.text?.substring(0, 200),
+          hasInlineData: !!part.inlineData,
+          hasFunctionCall: !!part.functionCall,
+          allKeys: Object.keys(part)
+        });
+      });
+    }
+  }
 
-      if (part?.inlineData) {
-        this.audioParts.push(part.inlineData.data ?? '');
-        const audioBuffer = this.convertToWav(this.audioParts, part.inlineData.mimeType ?? '');
-        this.playAudio(audioBuffer);
+  // Handle audio collection
+  if (message.serverContent?.modelTurn?.parts) {
+    message.serverContent.modelTurn.parts.forEach((part, index) => {
+      if (part?.inlineData && part.inlineData.mimeType?.includes('audio')) {
+        console.log('🎵 Audio chunk received:', {
+          mimeType: part.inlineData.mimeType,
+          dataSize: part.inlineData.data?.length,
+          chunkIndex: this.audioChunks.length
+        });
+        this.audioChunks.push(part.inlineData.data ?? '');
+        console.log(`Total audio chunks collected: ${this.audioChunks.length}`);
       }
 
       if (part?.text) {
-        console.log('🤖 AI Response:', part.text);
+        console.log('💬 AI Agent text response:', part.text);
       }
-    }
+    });
   }
 
-  private async executeFunctionCall(functionCall: any): Promise<string> {
-    const { name, args } = functionCall;
+  // Process audio when turn is complete
+  if (message.serverContent?.turnComplete) {
+    console.log('🏁 Turn complete, processing collected audio...');
+    this.processCompleteAudio();
+  }
+}
+
+  private processCompleteAudio() {
+  console.log(`🎵 Processing complete audio. Chunks: ${this.audioChunks.length}, isPlayingAudio: ${this.isPlayingAudio}`);
+  
+  if (this.audioChunks.length === 0) {
+    console.log('⚠️ No audio chunks to process');
+    return;
+  }
+  
+  if (this.isPlayingAudio) {
+    console.log('⚠️ Already playing audio, skipping processing');
+    return;
+  }
+
+  try {
+    // Log each chunk size for debugging
+    this.audioChunks.forEach((chunk, index) => {
+      console.log(`Chunk ${index}: ${chunk.length} characters`);
+    });
     
-    console.log(`🎯 Executing function: ${name}`, args);
+    // Combine all audio chunks
+    const combinedAudioData = this.audioChunks.join('');
+    console.log('🔗 Combined audio data size:', combinedAudioData.length);
+    
+    if (combinedAudioData.length === 0) {
+      console.warn('❌ Combined audio data is empty');
+      this.audioChunks = [];
+      return;
+    }
 
+    // Validate minimum audio size (rough estimation for meaningful audio)
+    if (combinedAudioData.length < 1000) { // Adjust this threshold as needed
+      console.warn(`⚠️ Audio data too small (${combinedAudioData.length} chars), might be incomplete`);
+      // You can choose to still process it or wait for more data
+      // For now, let's process it anyway but with a warning
+    }
+
+    // Convert to proper audio format
+    const audioBuffer = this.convertToCleanWav(combinedAudioData);
+    const audioBase64 = audioBuffer.toString('base64');
+    
+    console.log(`🔊 Sending complete audio to UI:`, {
+      chunks: this.audioChunks.length,
+      combinedSize: combinedAudioData.length,
+      finalSize: audioBase64.length
+    });
+    
+    // Send to UI for playback
+    this.config.onAudioGenerated(audioBase64);
+    
+  } catch (error) {
+    console.error('❌ Error processing complete audio:', error);
+  } finally {
+    // Clear processed chunks
+    this.audioChunks = [];
+  }
+}
+
+  private executeFunctionCall(functionName: string, args: any) {
+  console.log(`🚀 Executing function: ${functionName}`, {
+    functionName,
+    args,
+    argsType: typeof args,
+    argsKeys: args ? Object.keys(args) : []
+  });
+  
+  try {
+    switch (functionName) {
+      case 'show_location_details':
+        console.log('📍 Calling onLocationDetails with:', args.location_id, args.focus_map);
+        this.config.onLocationDetails(args.location_id, args.focus_map || true);
+        break;
+        
+      case 'navigate_to_location':
+        console.log('🧭 Calling onNavigate with:', args.location_id, args.transport_mode);
+        this.config.onNavigate(args.location_id, args.transport_mode || 'driving');
+        break;
+        
+      case 'highlight_locations':
+        console.log('🔦 Calling onHighlightLocations with:', args.location_ids, args.highlight_type);
+        this.config.onHighlightLocations(args.location_ids, args.highlight_type || 'pulse');
+        break;
+        
+      case 'set_map_filter':
+        console.log('🔧 Calling onSetMapFilter with:', args.filter);
+        this.config.onSetMapFilter(args.filter);
+        break;
+        
+      case 'find_nearby_locations':
+        console.log('📍 Calling onFindNearby with:', args.coordinates, args.radius_km, args.filter_type);
+        this.config.onFindNearby(args.coordinates, args.radius_km || 5, args.filter_type);
+        break;
+        
+      default:
+        console.warn('❌ Unknown function call:', functionName);
+    }
+    
+    console.log(`✅ Function ${functionName} executed successfully`);
+    
+  } catch (error) {
+    console.error(`❌ Error executing function ${functionName}:`, error);
+  }
+}
+
+  private convertToCleanWav(base64Data: string): Buffer {
     try {
-      switch (name) {
-        case 'search_locations':
-          const searchResults = await this.callbacks.onSearchLocations(args.query, args.filters);
-          return `Ditemukan ${searchResults.length} lokasi: ${searchResults.map(r => r.location_name).join(', ')}`;
+      const rawAudioData = Buffer.from(base64Data, 'base64');
+      const sampleRate = 24000, numChannels = 1, bitsPerSample = 16;
+      const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+      const blockAlign = numChannels * (bitsPerSample / 8);
+      const header = Buffer.alloc(44);
 
-        case 'show_location_details':
-          this.callbacks.onShowLocationDetails(args.location_id, args.focus_map ?? true);
-          const location = this.ragResults.find(r => r.location_id === args.location_id);
-          return `Menampilkan detail ${location?.location_name || 'lokasi'} di sidebar`;
+      header.write('RIFF', 0);
+      header.writeUInt32LE(36 + rawAudioData.length, 4);
+      header.write('WAVE', 8);
+      header.write('fmt ', 12);
+      header.writeUInt32LE(16, 16);
+      header.writeUInt16LE(1, 20);
+      header.writeUInt16LE(numChannels, 22);
+      header.writeUInt32LE(sampleRate, 24);
+      header.writeUInt32LE(byteRate, 28);
+      header.writeUInt16LE(blockAlign, 32);
+      header.writeUInt16LE(bitsPerSample, 34);
+      header.write('data', 36);
+      header.writeUInt32LE(rawAudioData.length, 40);
 
-        case 'show_navigation_route':
-          this.callbacks.onShowNavigation(args.destination_location_id, args.open_google_maps ?? false);
-          const destination = this.ragResults.find(r => r.location_id === args.destination_location_id);
-          return `Menampilkan rute navigasi ke ${destination?.location_name || 'lokasi tujuan'}`;
-
-        case 'highlight_locations_on_map':
-          this.callbacks.onHighlightLocations(args.location_ids, args.zoom_to_fit ?? true, args.highlight_color ?? 'blue');
-          return `Menyoroti ${args.location_ids.length} lokasi di peta`;
-
-        case 'filter_map_category':
-          this.callbacks.onFilterCategory(args.category);
-          return `Filter peta diubah ke kategori: ${args.category}`;
-
-        case 'get_nearby_facilities':
-          const facilities = await this.callbacks.onGetNearbyFacilities(args.location_id, args.facility_types, args.radius_km ?? 1);
-          return `Ditemukan ${facilities.length} fasilitas terdekat`;
-
-        default:
-          return `Function ${name} tidak dikenali`;
-      }
+      let audioBuffer = Buffer.concat([header, rawAudioData]);
+      
+      if (AudioProcessor?.normalizeAudioVolume) audioBuffer = AudioProcessor.normalizeAudioVolume(audioBuffer);
+      if (AudioProcessor?.removeClicks) audioBuffer = AudioProcessor.removeClicks(audioBuffer);
+      
+      return audioBuffer;
     } catch (error) {
-      console.error(`❌ Error executing ${name}:`, error);
-      return `Gagal menjalankan fungsi ${name}`;
+      console.error('Error converting audio:', error);
+      throw error;
     }
   }
 
-  private convertToWav(rawData: string[], mimeType: string): ArrayBuffer {
-    // Implementation sama seperti di contoh code
-    const options = this.parseMimeType(mimeType);
-    const dataLength = rawData.reduce((a, b) => a + b.length, 0);
-    const wavHeader = this.createWavHeader(dataLength, options);
-    const buffer = Buffer.concat(rawData.map(data => Buffer.from(data, 'base64')));
-    return Buffer.concat([wavHeader, buffer]);
-  }
+  get connected(): boolean { return this.isConnected; }
+  get connecting(): boolean { return this.isConnecting; }
+  get processing(): boolean { return this.isProcessing; }
 
-  private parseMimeType(mimeType: string) {
-    // Implementation parsing mime type untuk audio
-    const [fileType, ...params] = mimeType.split(';').map(s => s.trim());
-    const [_, format] = fileType.split('/');
-
-    return {
-      numChannels: 1,
-      sampleRate: 24000,
-      bitsPerSample: 16,
-    };
-  }
-
-  private createWavHeader(dataLength: number, options: any): Buffer {
-    // Implementation WAV header creation
-    const { numChannels, sampleRate, bitsPerSample } = options;
-    const byteRate = sampleRate * numChannels * bitsPerSample / 8;
-    const blockAlign = numChannels * bitsPerSample / 8;
-    const buffer = Buffer.alloc(44);
-
-    buffer.write('RIFF', 0);
-    buffer.writeUInt32LE(36 + dataLength, 4);
-    buffer.write('WAVE', 8);
-    buffer.write('fmt ', 12);
-    buffer.writeUInt32LE(16, 16);
-    buffer.writeUInt16LE(1, 20);
-    buffer.writeUInt16LE(numChannels, 22);
-    buffer.writeUInt32LE(sampleRate, 24);
-    buffer.writeUInt32LE(byteRate, 28);
-    buffer.writeUInt16LE(blockAlign, 32);
-    buffer.writeUInt16LE(bitsPerSample, 34);
-    buffer.write('data', 36);
-    buffer.writeUInt32LE(dataLength, 40);
-
-    return buffer;
-  }
-
-  private playAudio(audioBuffer: ArrayBuffer) {
-    // Play audio using Web Audio API
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    audioContext.decodeAudioData(audioBuffer)
-      .then((decodedData) => {
-        const source = audioContext.createBufferSource();
-        source.buffer = decodedData;
-        source.connect(audioContext.destination);
-        source.start(0);
-      })
-      .catch((error) => {
-        console.error('❌ Error playing audio:', error);
-      });
+  async reconnect(): Promise<void> {
+    this.disconnect();
+    await this.initialize();
   }
 
   disconnect() {
-    this.session?.close();
+    this.isProcessing = false;
+    this.isPlayingAudio = false;
+    if (this.session) {
+      try { this.session.close(); } catch (error) { console.warn('Error closing session:', error); }
+      this.session = undefined;
+    }
+    this.isConnected = false;
+    this.isConnecting = false;
+    this.responseQueue = [];
+    this.audioChunks = [];
   }
 }
