@@ -65,7 +65,8 @@ const ChatBotFloating = ({
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-
+  const [aiResponse, setAiResponse] = useState<string>("");
+  const [isTextVisible, setIsTextVisible] = useState(false);
   const [audioQueue, setAudioQueue] = useState<string[]>([]);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   
@@ -99,6 +100,7 @@ const ChatBotFloating = ({
         onSetMapFilter,
         onFindNearby,
         onAudioGenerated: handleAudioGenerated,
+        onTextGenerated: handleTextGenerated, // Add text handler
         userLocation
       });
       
@@ -112,7 +114,16 @@ const ChatBotFloating = ({
       setConnectionStatus('disconnected');
     }
   };
-
+  const handleTextGenerated = (text: string) => {
+    console.log('📝 Text response received:', text);
+    setAiResponse(text);
+    setIsTextVisible(true);
+    
+    // Auto-hide text after 10 seconds
+    setTimeout(() => {
+      setIsTextVisible(false);
+    }, 10000);
+  };
   const handleReconnect = async () => {
     if (aiAgent) {
       aiAgent.disconnect();
@@ -354,6 +365,8 @@ const handleAudioGenerated = async (audioBase64: string) => {
     setQuery("");
     setSelectedImage(null);
     setImagePreview(null);
+    setAiResponse("");
+    setIsTextVisible(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -482,6 +495,22 @@ const handleAudioGenerated = async (audioBase64: string) => {
   return (
     <div className="fixed bottom-4 right-20 z-[60] w-80" onClick={handleClickOutside}>
       <div className="bg-white rounded-lg shadow-xl border border-gray-200">
+      {isTextVisible && aiResponse && (
+          <div className="p-3 bg-blue-50 border-b border-blue-200">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-sm text-blue-800 font-medium mb-1">AI Response:</p>
+                <p className="text-sm text-blue-700">{aiResponse}</p>
+              </div>
+              <button
+                onClick={() => setIsTextVisible(false)}
+                className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors ml-2"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b bg-blue-50 rounded-t-lg">
           <div className="flex items-center space-x-2">

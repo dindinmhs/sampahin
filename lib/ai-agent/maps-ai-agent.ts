@@ -29,6 +29,7 @@ interface AIAgentConfig {
   onSetMapFilter: (filter: string) => void;
   onFindNearby: (coordinates?: [number, number], radiusKm?: number, filterType?: string) => void;
   onAudioGenerated: (audioData: string) => void;
+  onTextGenerated?: (text: string) => void; // Add text callback
   userLocation?: [number, number];
 }
 
@@ -62,17 +63,28 @@ export class AIAgentService {
         apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '',
       });
 
-      const model = 'models/gemini-2.5-flash-preview-native-audio-dialog';
+      // FIXED: Use the exact model from documentation
+      const model = 'models/gemini-2.5-flash-live-preview';
       const tools = [{ functionDeclarations: functionDefinitions }];
 
+      // FIXED: Follow documentation pattern - only AUDIO modality for function calls
       const sessionConfig = {
-        responseModalities: [Modality.AUDIO],
+        responseModalities: [Modality.AUDIO], // Back to AUDIO only like documentation
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
         speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
+          languageCode: 'id-ID',
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
         },
         tools,
-        systemInstruction: "You are a voice assistant. Always respond with audio. Provide helpful, detailed information in Indonesian based on the RAG data provided. Your audio response should be at least 3-5 seconds long."
+        systemInstruction: `You are a voice assistant for Sampahin app. 
+
+CRITICAL INSTRUCTIONS:
+1. ALWAYS call appropriate functions based on user requests
+2. ALWAYS provide audio response in Indonesian (3-5 seconds)
+3. Function calls are MANDATORY - never skip them
+4. When user asks for location details, navigation, filtering, etc., you MUST call the corresponding functions.
+
+Use the exact location_id values from the provided RAG data when calling functions.`
       };
 
       console.log('🔧 Initializing AI Agent with config:', sessionConfig);
@@ -156,25 +168,30 @@ export class AIAgentService {
 
     this.isProcessing = true;
     this.responseQueue = [];
-    this.audioChunks = []; // Reset chunks for new message
+    this.audioChunks = [];
 
     try {
       const ragContext = this.buildRAGContext(ragResults);
       const systemPrompt = this.buildSystemPrompt(ragContext);
       const fullPrompt = `${systemPrompt}\n\nUser Query: ${text}`;
 
-      console.log('📤 Sending to AI Agent:', { text, hasImage: !!imageBase64, ragResultsCount: ragResults?.length || 0 });
+      console.log('📤 Sending to AI Agent:', { 
+        text, 
+        hasImage: !!imageBase64, 
+        ragResultsCount: ragResults?.length || 0,
+        promptLength: fullPrompt.length
+      });
 
       this.session.sendClientContent({ turns: [fullPrompt] });
 
-      await Promise.race([
-        this.handleTurn(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Response timeout')), 30000))
-      ]);
+      // FIXED: Use documentation pattern
+      await this.handleTurn();
+
     } catch (error) {
       console.error('Error sending message:', error);
       this.isConnected = false;
       this.session = undefined;
+      throw error;
     } finally {
       this.isProcessing = false;
     }
@@ -196,13 +213,11 @@ export class AIAgentService {
 
   return `# Sampahin AI Assistant - Voice & Function Interface
 
-CRITICAL RULES:
-1. ALWAYS respond with AUDIO (minimum 3-5 seconds in Indonesian)
-2. ALWAYS call appropriate functions based on user requests
-3. NEVER just give audio without function calls
+## MANDATORY FUNCTION CALLING:
+You MUST call appropriate functions for EVERY user request. Never skip function calls.
 
 ## Your Identity:
-Voice assistant untuk aplikasi Sampahin - monitoring kebersihan lingkungan.
+Voice assistant untuk aplikasi Sampahin - monitoring kebersihan lingkungan Indonesia.
 
 ## Context:
 ${userLocationInfo}
@@ -210,153 +225,165 @@ ${userLocationInfo}
 ## Available Data:
 ${ragContext}
 
+## RESPONSE STRATEGY:
+1. **IMMEDIATELY call the appropriate function(s)**
+2. **Provide detailed informative audio response about the actual content/data**
+3. **Don't just say "I will show..." - explain what the data contains**
+
 ## FUNCTION CALL MAPPING - MANDATORY:
 
 ### User wants location details:
-- Keywords: "detail", "info", "tampilkan", "lihat", "buka", "informasi"
+- Keywords: "detail", "info", "tampilkan", "lihat", "buka", "informasi", "tunjukkan"
 - MUST CALL: show_location_details(location_id_from_RAG, focus_map: true)
+- Audio Response: EXPLAIN THE ACTUAL LOCATION DETAILS like:
+  * "Lokasi [nama] di [alamat] memiliki grade kebersihan [grade] dengan skor [score]. Lokasi ini [deskripsi kondisi berdasarkan grade]. Koordinat tepatnya adalah [lat, lon]."
 
 ### User wants navigation:
 - Keywords: "rute", "arah", "navigasi", "jalan", "pergi ke", "carikan jalan"
 - MUST CALL: navigate_to_location(location_id_from_RAG, transport_mode: "driving")
+- Audio Response: EXPLAIN THE ROUTE DETAILS like:
+  * "Navigasi ke [nama lokasi] di [alamat]. Jarak dari posisi Anda sekitar [estimasi]. Lokasi ini memiliki kondisi kebersihan [grade]."
 
 ### User wants to see/highlight locations:
 - Keywords: "tunjukkan", "sorot", "highlight", "tampilkan di peta"
 - MUST CALL: highlight_locations([location_ids_from_RAG], highlight_type: "pulse")
+- Audio Response: EXPLAIN WHAT'S BEING HIGHLIGHTED like:
+  * "Menandai [jumlah] lokasi di peta. Ini termasuk [nama-nama lokasi] dengan grade [grades]. Lokasi terkotor adalah [nama] dengan grade [grade]."
 
 ### User wants to filter:
 - Keywords: "filter", "tampilkan hanya", "sembunyikan", "kategori"
 - MUST CALL: set_map_filter(filter_type)
+- Audio Response: EXPLAIN THE FILTER RESULT like:
+  * "Filter diatur untuk menampilkan hanya lokasi [kategori]. Dari data yang ada, terdapat [jumlah] lokasi dengan kriteria ini."
 
 ### User wants nearby search:
 - Keywords: "terdekat", "sekitar", "dekat", "radius", "cari"
 - MUST CALL: find_nearby_locations(coordinates, radius_km: 5, filter_type)
+- Audio Response: EXPLAIN NEARBY RESULTS like:
+  * "Mencari dalam radius 5km. Lokasi terdekat adalah [nama] berjarak [jarak] dengan kondisi [grade]. Total ada [jumlah] lokasi di sekitar area ini."
 
-## RESPONSE PROTOCOL:
+## ENHANCED EXAMPLES WITH INFORMATIVE RESPONSES:
 
-1. **Analyze** user intent and identify which function to call
-2. **Extract** parameters from RAG data (use exact location_id values)
-3. **Call** the appropriate function immediately
-4. **Speak** your response explaining what you're doing
-
-## EXAMPLES:
-
-**Input**: "Tampilkan detail mall itu"
-**Actions**:
-- Audio: "Halo! Saya akan menampilkan detail mall untuk Anda. Mari saya buka informasinya."
-- Function: show_location_details("mall_location_id_from_RAG", true)
+**Input**: "Tampilkan detail lokasi Tasik"
+**Response**:
+1. Function: show_location_details("TASIK_001", true)
+2. Audio: "Tasik di Tasikmalaya, Jawa Barat memiliki grade kebersihan D dengan skor 20 dari 100. Kondisi lokasi cukup kotor dengan beberapa masalah sampah yang perlu diperhatikan. Koordinat lokasi adalah -7.3302, 108.2491. Lokasi ini masuk kategori yang memerlukan pembersihan segera."
 
 **Input**: "Carikan jalan ke tempat kotor terdekat"
-**Actions**:
-- Audio: "Baik, saya akan mencarikan rute ke lokasi kotor terdekat. Mari saya buka navigasinya."
-- Function: navigate_to_location("dirty_location_id_from_RAG", "driving")
+**Response**:
+1. Function: navigate_to_location("DIRTY_LOC_001", "driving")
+2. Audio: "Memulai navigasi ke Mall ABC di Jakarta Selatan. Lokasi ini memiliki grade E, kondisi sangat kotor dengan skor hanya 15 dari 100. Jarak dari posisi Anda sekitar 2.5 kilometer. Lokasi ini memerlukan perhatian khusus untuk pembersihan."
 
-## DATA EXTRACTION:
-From RAG results, extract:
-- location_id: result.location_id (EXACT VALUE)
-- coordinates: [result.lat, result.lan] 
-- grade/type: result.grade, result.type
+**Input**: "Tunjukkan semua lokasi kotor di Jakarta"
+**Response**:
+1. Functions: 
+   - set_map_filter("dirty")
+   - highlight_locations(["LOC1", "LOC2", "LOC3"], "pulse")
+2. Audio: "Menampilkan 8 lokasi kotor di Jakarta. Lokasi terkotor adalah Pasar XYZ dengan grade E dan skor 12. Ada juga Mall ABC grade D, dan Taman DEF grade D. Sebagian besar berlokasi di Jakarta Selatan dan Jakarta Timur. Total skor rata-rata kebersihan adalah 25 dari 100."
 
-## CRITICAL:
+## DATA EXTRACTION & USAGE:
+From RAG results, extract and USE IN AUDIO:
+- location_id: result.location_id (for function calls)
+- location_name: result.location_name (mention in audio)
+- address: result.address (mention in audio)
+- grade: result.grade (explain what it means)
+- score: result.score (give the number)
+- coordinates: [result.lat, result.lan] (can mention)
+- type: result.type (explain the category)
+
+## GRADE INTERPRETATION FOR AUDIO:
+- Grade A (90-100): "sangat bersih dan terawat dengan baik"
+- Grade B (70-89): "bersih dengan kondisi cukup baik"
+- Grade C (50-69): "kondisi sedang, masih dapat diterima"
+- Grade D (30-49): "cukup kotor dan perlu pembersihan"
+- Grade E (0-29): "sangat kotor dan memerlukan perhatian segera"
+
+## CRITICAL RULES:
 - ALWAYS call functions with EXACT location_id from RAG data
-- NEVER make up location IDs
-- ALWAYS provide audio explanation
-- Use natural Indonesian speech
+- ALWAYS provide specific, informative audio about the actual data content
+- NEVER just say "saya akan menampilkan" - explain what you're showing
+- USE real data from RAG results in your audio response
+- MENTION actual names, grades, scores, addresses in your speech
+- BE SPECIFIC and INFORMATIVE about the location conditions
 
-Remember: You are BOTH voice assistant AND function executor!`;
+Remember: Function calls trigger actions, but your audio should explain the CONTENT and MEANING of the data!`;
 }
 
-  private async handleTurn(): Promise<void> {
-  let done = false;
-  let messageCount = 0;
-  const maxMessages = 1000000;
-  let lastAudioChunkTime = Date.now();
-  
-  while (!done && messageCount < maxMessages) {
-    try {
-      const message = await this.waitMessage(120000);
-      messageCount++;
+  private async handleTurn(): Promise<LiveServerMessage[]> {
+    const turn: LiveServerMessage[] = [];
+    let done = false;
+    
+    console.log("⏳ Starting to handle turn, waiting for messages...");
+    
+    while (!done) {
+      const message = await this.waitMessage();
+      turn.push(message);
       
-      // Track when we last received audio
-      if (message.serverContent?.modelTurn?.parts?.some(part => 
-        part?.inlineData?.mimeType?.includes('audio'))) {
-        lastAudioChunkTime = Date.now();
-      }
-      
-      if (message.serverContent?.turnComplete) {
-        console.log('🏁 Turn completed flag received.');
+      if (message.serverContent && message.serverContent.turnComplete) {
+        console.log('🏁 Turn complete flag received.');
         done = true;
       }
-      
-      // Safety: if no audio chunks for 2 seconds and we have some audio, process it
-      if (this.audioChunks.length > 0 && 
-          Date.now() - lastAudioChunkTime > 60000) {
-        console.log('⏰ No new audio chunks for 2 seconds, processing existing audio');
-        this.processCompleteAudio();
-        done = true;
-      }
-      
-    } catch (error) {
-      console.error('Error in handleTurn:', error);
-      done = true;
     }
-  }
-  
-  if (messageCount >= maxMessages) {
-    console.warn('⚠️ Max messages reached, ending turn');
-    // Process any remaining audio
+    
+    console.log('✅ Turn handling finished.', {
+      messagesProcessed: turn.length,
+      audioChunks: this.audioChunks.length
+    });
+
+    // Process audio after turn is complete
     if (this.audioChunks.length > 0) {
       this.processCompleteAudio();
     }
-  }
-}
-
-  private async waitMessage(timeout: number = 5000): Promise<LiveServerMessage> {
-    return new Promise((resolve, reject) => {
-      const startTime = Date.now();
-      const checkMessage = () => {
-        const message = this.responseQueue.shift();
-        if (message) {
-          this.handleModelTurn(message);
-          resolve(message);
-        } else if (Date.now() - startTime > timeout) {
-          reject(new Error('Message timeout in waitMessage'));
-        } else {
-          setTimeout(checkMessage, 50);
-        }
-      };
-      checkMessage();
-    });
+    
+    return turn;
   }
 
-  private handleModelTurn(message: LiveServerMessage) {
-  console.log('📨 Complete message structure:', JSON.stringify(message, null, 2));
+    private async waitMessage(): Promise<LiveServerMessage> {
+    let done = false;
+    let message: LiveServerMessage | undefined = undefined;
+    
+    while (!done) {
+      message = this.responseQueue.shift();
+      if (message) {
+        // CRITICAL: Process message here like documentation
+        this.handleModelTurn(message);
+        done = true;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    return message!;
+  }
 
-  // Debug toolCall specifically
-  console.log('🔍 Checking for toolCall:', {
+  private processMessage(message: LiveServerMessage): { hasAudio: boolean; hasFunctionCalls: boolean; hasText: boolean } {
+  let hasAudio = false;
+  let hasFunctionCalls = false;
+  let hasText = false;
+
+  console.log('📨 Processing message:', {
     hasToolCall: !!message.toolCall,
-    toolCallKeys: message.toolCall ? Object.keys(message.toolCall) : [],
-    toolCallContent: message.toolCall
+    hasServerContent: !!message.serverContent,
+    turnComplete: message.serverContent?.turnComplete
   });
 
-  // Handle function calls first with enhanced debugging
-  if (message.toolCall?.functionCalls) {
-    console.log('🔧 Function calls found:', {
-      count: message.toolCall.functionCalls.length,
-      calls: message.toolCall.functionCalls
-    });
+  // 1. Handle function calls FIRST
+  if (message.toolCall?.functionCalls && message.toolCall.functionCalls.length > 0) {
+    console.log('🔧 Function calls found:', message.toolCall.functionCalls.length);
+    hasFunctionCalls = true;
     
     message.toolCall.functionCalls.forEach((call, index) => {
-      console.log(`🎯 Executing function ${index}:`, {
+      console.log(`🎯 Executing function ${index + 1}:`, {
         name: call.name,
         args: call.args,
         id: call.id
       });
+      
       if (call.name) {
         this.executeFunctionCall(call.name, call.args);
       }
     });
 
+    // Send tool response immediately
     if (this.session) {
       const functionResponses = message.toolCall.functionCalls.map(call => ({
         id: call.id,
@@ -365,156 +392,241 @@ Remember: You are BOTH voice assistant AND function executor!`;
       }));
       
       console.log('📤 Sending tool responses:', functionResponses);
-      
-      this.session.sendToolResponse({
-        functionResponses
-      });
-    }
-  } else {
-    console.log('⚠️ No function calls found in message');
-    
-    // Additional debugging for missed function calls
-    if (message.serverContent?.modelTurn?.parts) {
-      message.serverContent.modelTurn.parts.forEach((part, index) => {
-        console.log(`Part ${index} analysis:`, {
-          hasText: !!part.text,
-          textContent: part.text?.substring(0, 200),
-          hasInlineData: !!part.inlineData,
-          hasFunctionCall: !!part.functionCall,
-          allKeys: Object.keys(part)
-        });
-      });
+      this.session.sendToolResponse({ functionResponses });
     }
   }
 
-  // Handle audio collection
+  // 2. Handle content (text and audio)
   if (message.serverContent?.modelTurn?.parts) {
     message.serverContent.modelTurn.parts.forEach((part, index) => {
-      if (part?.inlineData && part.inlineData.mimeType?.includes('audio')) {
-        console.log('🎵 Audio chunk received:', {
-          mimeType: part.inlineData.mimeType,
-          dataSize: part.inlineData.data?.length,
-          chunkIndex: this.audioChunks.length
-        });
-        this.audioChunks.push(part.inlineData.data ?? '');
-        console.log(`Total audio chunks collected: ${this.audioChunks.length}`);
+      // Handle text content
+      if (part?.text) {
+        console.log('💬 Text content received:', part.text.substring(0, 200) + '...');
+        hasText = true;
+        
+        // Send text to UI
+        this.config.onTextGenerated?.(part.text);
       }
 
-      if (part?.text) {
-        console.log('💬 AI Agent text response:', part.text);
+      // Handle audio content
+      if (part?.inlineData?.mimeType?.includes('audio') && part.inlineData.data) {
+        console.log(`🎵 Audio chunk ${index} received (${part.inlineData.data.length} chars)`);
+        this.audioChunks.push(part.inlineData.data);
+        hasAudio = true;
       }
     });
   }
 
-  // Process audio when turn is complete
-  if (message.serverContent?.turnComplete) {
-    console.log('🏁 Turn complete, processing collected audio...');
-    this.processCompleteAudio();
-  }
+  return { hasAudio, hasFunctionCalls, hasText };
 }
 
-  private processCompleteAudio() {
-  console.log(`🎵 Processing complete audio. Chunks: ${this.audioChunks.length}, isPlayingAudio: ${this.isPlayingAudio}`);
-  
-  if (this.audioChunks.length === 0) {
-    console.log('⚠️ No audio chunks to process');
-    return;
-  }
-  
-  if (this.isPlayingAudio) {
-    console.log('⚠️ Already playing audio, skipping processing');
-    return;
+  private handleModelTurn(message: LiveServerMessage) {
+    console.log('📨 Processing message:', {
+      hasToolCall: !!message.toolCall,
+      hasServerContent: !!message.serverContent,
+      turnComplete: message.serverContent?.turnComplete
+    });
+
+    // 1. Handle function calls first (from documentation)
+    if (message.toolCall) {
+      console.log('🔧 Function calls found:', message.toolCall.functionCalls?.length || 0);
+      
+      message.toolCall.functionCalls?.forEach(
+        functionCall => {
+          console.log(`🎯 Execute function ${functionCall.name} with arguments:`, JSON.stringify(functionCall.args));
+          // Execute the function
+          this.executeFunctionCall(functionCall.name, functionCall.args);
+        }
+      );
+
+      // CRITICAL: Send tool response exactly like documentation
+      this.session?.sendToolResponse({
+        functionResponses:
+          message.toolCall.functionCalls?.map(functionCall => ({
+            id: functionCall.id,
+            name: functionCall.name,
+            response: { response: 'Function executed successfully' } // Simple response like docs
+          })) ?? []
+      });
+    }
+
+    // 2. Handle content (audio and text)
+    if (message.serverContent?.modelTurn?.parts) {
+      message.serverContent.modelTurn.parts.forEach((part, index) => {
+        // Handle text content
+        if (part?.text) {
+          console.log('💬 Text content:', part.text.substring(0, 200) + '...');
+          this.config.onTextGenerated?.(part.text);
+        }
+
+        // Handle audio content (from documentation pattern)
+        if (part?.inlineData) {
+          console.log(`🎵 Audio chunk ${index} received:`, {
+            mimeType: part.inlineData.mimeType,
+            dataSize: part.inlineData.data?.length
+          });
+          
+          // Collect audio parts like documentation
+          this.audioChunks.push(part.inlineData.data ?? '');
+        }
+      });
+    }
   }
 
-  try {
-    // Log each chunk size for debugging
-    this.audioChunks.forEach((chunk, index) => {
-      console.log(`Chunk ${index}: ${chunk.length} characters`);
-    });
+  private createWavHeader(dataLength: number, options: any): Buffer {
+    const { numChannels, sampleRate, bitsPerSample } = options;
+    const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+    const blockAlign = numChannels * bitsPerSample / 8;
+    const buffer = Buffer.alloc(44);
+
+    buffer.write('RIFF', 0);                      // ChunkID
+    buffer.writeUInt32LE(36 + dataLength, 4);     // ChunkSize
+    buffer.write('WAVE', 8);                      // Format
+    buffer.write('fmt ', 12);                     // Subchunk1ID
+    buffer.writeUInt32LE(16, 16);                 // Subchunk1Size (PCM)
+    buffer.writeUInt16LE(1, 20);                  // AudioFormat (1 = PCM)
+    buffer.writeUInt16LE(numChannels, 22);        // NumChannels
+    buffer.writeUInt32LE(sampleRate, 24);         // SampleRate
+    buffer.writeUInt32LE(byteRate, 28);           // ByteRate
+    buffer.writeUInt16LE(blockAlign, 32);         // BlockAlign
+    buffer.writeUInt16LE(bitsPerSample, 34);      // BitsPerSample
+    buffer.write('data', 36);                     // Subchunk2ID
+    buffer.writeUInt32LE(dataLength, 40);         // Subchunk2Size
+
+    return buffer;
+  }
+
+  private convertToWav(rawData: string[], mimeType: string): Buffer {
+    const options = this.parseMimeType(mimeType);
+    const dataLength = rawData.reduce((a, b) => a + b.length, 0);
+    const wavHeader = this.createWavHeader(dataLength, options);
+    const buffer = Buffer.concat(rawData.map(data => Buffer.from(data, 'base64')));
+
+    return Buffer.concat([wavHeader, buffer]);
+  }
+
+  private parseMimeType(mimeType: string) {
+    const [fileType, ...params] = mimeType.split(';').map(s => s.trim());
+    const [_, format] = fileType.split('/');
+
+    const options = {
+      numChannels: 1,
+      bitsPerSample: 16,
+      sampleRate: 24000,
+    };
+
+    if (format && format.startsWith('L')) {
+      const bits = parseInt(format.slice(1), 10);
+      if (!isNaN(bits)) {
+        options.bitsPerSample = bits;
+      }
+    }
+
+    for (const param of params) {
+      const [key, value] = param.split('=').map(s => s.trim());
+      if (key === 'rate') {
+        options.sampleRate = parseInt(value, 10);
+      }
+    }
+
+    return options;
+  }
+
+  private processCompleteAudio() {
+    console.log(`🎵 Processing ${this.audioChunks.length} audio chunks...`);
     
-    // Combine all audio chunks
-    const combinedAudioData = this.audioChunks.join('');
-    console.log('🔗 Combined audio data size:', combinedAudioData.length);
+    if (this.audioChunks.length === 0) {
+      console.log('⚠️ No audio chunks to process');
+      return;
+    }
     
-    if (combinedAudioData.length === 0) {
-      console.warn('❌ Combined audio data is empty');
-      this.audioChunks = [];
+    if (this.isPlayingAudio) {
+      console.log('⚠️ Already playing audio, skipping processing');
       return;
     }
 
-    // Validate minimum audio size (rough estimation for meaningful audio)
-    if (combinedAudioData.length < 1000) { // Adjust this threshold as needed
-      console.warn(`⚠️ Audio data too small (${combinedAudioData.length} chars), might be incomplete`);
-      // You can choose to still process it or wait for more data
-      // For now, let's process it anyway but with a warning
-    }
+    try {
+      // Combine audio chunks like documentation
+      const combinedAudioData = this.audioChunks.join('');
+      console.log('🔗 Combined audio data size:', combinedAudioData.length);
+      
+      if (combinedAudioData.length === 0) {
+        console.warn('❌ Combined audio data is empty');
+        this.audioChunks = [];
+        return;
+      }
 
-    // Convert to proper audio format
-    const audioBuffer = this.convertToCleanWav(combinedAudioData);
-    const audioBase64 = audioBuffer.toString('base64');
-    
-    console.log(`🔊 Sending complete audio to UI:`, {
-      chunks: this.audioChunks.length,
-      combinedSize: combinedAudioData.length,
-      finalSize: audioBase64.length
-    });
-    
-    // Send to UI for playback
-    this.config.onAudioGenerated(audioBase64);
-    
-  } catch (error) {
-    console.error('❌ Error processing complete audio:', error);
-  } finally {
-    // Clear processed chunks
-    this.audioChunks = [];
+      // Convert to WAV using documentation method
+      const audioBuffer = this.convertToWav(this.audioChunks, 'audio/pcm;rate=24000');
+      const audioBase64 = audioBuffer.toString('base64');
+      
+      console.log(`🔊 Sending complete audio to UI (${audioBase64.length} chars)`);
+      this.config.onAudioGenerated(audioBase64);
+      
+    } catch (error) {
+      console.error('❌ Error processing complete audio:', error);
+    } finally {
+      this.audioChunks = [];
+    }
   }
-}
 
   private executeFunctionCall(functionName: string, args: any) {
-  console.log(`🚀 Executing function: ${functionName}`, {
-    functionName,
-    args,
-    argsType: typeof args,
-    argsKeys: args ? Object.keys(args) : []
-  });
-  
-  try {
-    switch (functionName) {
-      case 'show_location_details':
-        console.log('📍 Calling onLocationDetails with:', args.location_id, args.focus_map);
-        this.config.onLocationDetails(args.location_id, args.focus_map || true);
-        break;
-        
-      case 'navigate_to_location':
-        console.log('🧭 Calling onNavigate with:', args.location_id, args.transport_mode);
-        this.config.onNavigate(args.location_id, args.transport_mode || 'driving');
-        break;
-        
-      case 'highlight_locations':
-        console.log('🔦 Calling onHighlightLocations with:', args.location_ids, args.highlight_type);
-        this.config.onHighlightLocations(args.location_ids, args.highlight_type || 'pulse');
-        break;
-        
-      case 'set_map_filter':
-        console.log('🔧 Calling onSetMapFilter with:', args.filter);
-        this.config.onSetMapFilter(args.filter);
-        break;
-        
-      case 'find_nearby_locations':
-        console.log('📍 Calling onFindNearby with:', args.coordinates, args.radius_km, args.filter_type);
-        this.config.onFindNearby(args.coordinates, args.radius_km || 5, args.filter_type);
-        break;
-        
-      default:
-        console.warn('❌ Unknown function call:', functionName);
+    console.log(`🚀 EXECUTING FUNCTION: ${functionName}`, {
+      functionName,
+      args,
+      hasArgs: !!args
+    });
+    
+    try {
+      switch (functionName) {
+        case 'show_location_details':
+          console.log('📍 Calling onLocationDetails:', {
+            locationId: args?.location_id,
+            focusMap: args?.focus_map !== false
+          });
+          this.config.onLocationDetails(args?.location_id, args?.focus_map !== false);
+          break;
+          
+        case 'navigate_to_location':
+          console.log('🧭 Calling onNavigate:', {
+            locationId: args?.location_id,
+            transportMode: args?.transport_mode || 'driving'
+          });
+          this.config.onNavigate(args?.location_id, args?.transport_mode || 'driving');
+          break;
+          
+        case 'highlight_locations':
+          console.log('🔦 Calling onHighlightLocations:', {
+            locationIds: args?.location_ids,
+            highlightType: args?.highlight_type || 'pulse'
+          });
+          this.config.onHighlightLocations(args?.location_ids || [], args?.highlight_type || 'pulse');
+          break;
+          
+        case 'set_map_filter':
+          console.log('🔧 Calling onSetMapFilter:', { filter: args?.filter });
+          this.config.onSetMapFilter(args?.filter);
+          break;
+          
+        case 'find_nearby_locations':
+          console.log('📍 Calling onFindNearby:', {
+            coordinates: args?.coordinates,
+            radiusKm: args?.radius_km || 5,
+            filterType: args?.filter_type
+          });
+          this.config.onFindNearby(args?.coordinates, args?.radius_km || 5, args?.filter_type);
+          break;
+          
+        default:
+          console.warn('❌ Unknown function:', functionName);
+      }
+      
+      console.log(`✅ Function ${functionName} executed successfully`);
+      
+    } catch (error) {
+      console.error(`❌ Error executing function ${functionName}:`, error);
     }
-    
-    console.log(`✅ Function ${functionName} executed successfully`);
-    
-  } catch (error) {
-    console.error(`❌ Error executing function ${functionName}:`, error);
   }
-}
 
   private convertToCleanWav(base64Data: string): Buffer {
     try {
