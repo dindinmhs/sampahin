@@ -1,62 +1,165 @@
 import Link from "next/link";
+import Image from "next/image";
+import { CheckCircle, Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Page() {
   return (
-    <div className="min-h-screen bg-green-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8 space-y-8">
-          {/* Logo */}
-          <div className="text-center">
-            <div className="w-20 h-20 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <svg
-                className="w-10 h-10 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-3">Pendaftaran Berhasil!</h1>
-            <p className="text-gray-600 text-center leading-relaxed">
-              Terima kasih telah bergabung dengan kami. Silakan periksa email Anda untuk konfirmasi akun.
-            </p>
-          </div>
+    <div className="min-h-screen relative">
+      {/* Background Image with Overlay */}
+      <div className="absolute inset-0">
+        <Image
+          src="/bg-login.png"
+          alt="Waste management and recycling - Environmental sustainability"
+          fill
+          className="w-full h-full object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/60"></div>
+      </div>
 
-          {/* Success Message */}
-          <div className="text-green-700 text-sm text-center bg-green-50 border border-green-200 p-4 rounded-xl">
-            <div className="flex items-center justify-center space-x-2">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-              </svg>
-              <span>Email konfirmasi telah dikirim ke kotak masuk Anda</span>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="space-y-4">
-            <Link
-              href="/auth/login"
-              className="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl font-medium transition-colors duration-200 flex items-center justify-center"
-            >
-              Lanjut ke Login →
-            </Link>
-
-            <div className="text-center space-y-4">
-              <div className="flex items-center justify-center space-x-4">
-                <div className="flex-1 h-px bg-gray-200"></div>
-                <span className="text-gray-400 text-sm font-medium">atau</span>
-                <div className="flex-1 h-px bg-gray-200"></div>
-              </div>
-              
-              <div className="space-y-3">
+      {/* Main Content */}
+      <div className="relative z-10 flex items-center min-h-[calc(100vh-88px)] px-4 sm:px-6">
+        <div className="flex-1 max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-8 lg:gap-16">
+          {/* Left Side - Success Message - Hidden on Mobile */}
+          <div className="hidden lg:block flex-1 text-white text-left">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-white" />
+                </div>
                 <div>
-                  <span className="text-gray-600">Tidak menerima email? </span>
-                  <Link
-                    href="/auth/sign-up"
-                    className="text-green-600 hover:text-green-700 font-semibold transition-colors duration-200"
+                  <h1 className="text-5xl font-bold leading-tight">SELAMAT!</h1>
+                  <p className="text-2xl text-white/80">Pendaftaran berhasil</p>
+                </div>
+              </div>
+
+              <div className="space-y-6 mb-8">
+                <p className="text-xl text-white/90 leading-relaxed">
+                  Terima kasih telah bergabung dengan komunitas Sampahin!
+                  Bersama-sama kita akan menciptakan lingkungan yang lebih
+                  bersih dan berkelanjutan.
+                </p>
+
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <div className="flex items-start gap-4">
+                    <Mail className="w-6 h-6 text-white mt-1 flex-shrink-0" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        Verifikasi Email Diperlukan
+                      </h3>
+                      <p className="text-white/80 text-sm leading-relaxed">
+                        Kami telah mengirimkan email konfirmasi ke alamat email
+                        Anda. Silakan periksa kotak masuk (atau folder spam) dan
+                        klik link aktivasi untuk mengaktifkan akun Anda.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 text-white/60 text-sm">
+                <span>
+                  Mari mulai perjalanan menuju lingkungan yang lebih baik
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Success Steps - Centered on Mobile */}
+          <div className="w-full max-w-sm sm:max-w-md lg:w-96 mx-auto lg:mx-0 mt-0 lg:mt-8">
+            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-2xl">
+              <div className="text-center mb-6 sm:mb-8">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                  <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600" />
+                </div>
+                <h2 className="text-xl sm:text-2xl text-gray-900 mb-2">
+                  Akun Terdaftar!
+                </h2>
+                <p className="text-gray-500 text-xs sm:text-sm">
+                  Langkah selanjutnya untuk memulai
+                </p>
+              </div>
+
+              <div className="space-y-4 sm:space-y-6">
+                {/* Next Steps */}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="flex items-start gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">1</span>
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">
+                        Verifikasi Email
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Periksa email dan klik link aktivasi
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">2</span>
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">
+                        Masuk ke Akun
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Login dengan email dan password Anda
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">3</span>
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-medium text-gray-900">
+                        Mulai Eksplorasi
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Jelajahi fitur pengelolaan sampah
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-3 sm:space-y-4 pt-4 sm:pt-6">
+                  <Button
+                    asChild
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 sm:py-3 text-sm sm:text-base rounded-lg"
                   >
-                    Daftar Ulang
-                  </Link>
+                    <Link href="/auth/login">Lanjut ke Login</Link>
+                  </Button>
+
+                  <div className="text-center text-gray-400 text-xs sm:text-sm">
+                    atau
+                  </div>
+
+                  <div className="text-center text-xs sm:text-sm">
+                    <span className="text-gray-600">
+                      Tidak menerima email?{" "}
+                    </span>
+                    <Link
+                      href="/auth/sign-up"
+                      className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+                    >
+                      Daftar Ulang
+                    </Link>
+                  </div>
+
+                  <div className="text-center">
+                    <Link
+                      href="/"
+                      className="text-sm text-gray-500 hover:text-emerald-600 transition-colors"
+                    >
+                      ← Kembali ke Beranda
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
