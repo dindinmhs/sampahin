@@ -495,7 +495,7 @@ const Maps = () => {
       <style jsx>{`
         .highlighted-marker {
           filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) brightness(1.3);
-          animation: highlightPulse 2s infinite;
+          animation: highlightPulse 6s infinite;
           z-index: 1000 !important;
         }
 
@@ -565,7 +565,7 @@ const Maps = () => {
           onHighlightLocations={handleHighlightLocations}
           onSetMapFilter={handleSetMapFilter}
           onFindNearby={handleFindNearby}
-          userLocation={userLocation}
+          userLocation={userLocation ?? undefined}
         />
       )}
 
@@ -786,11 +786,7 @@ const Maps = () => {
               )}
               <Marker
                 position={[loc.lan, loc.lat]}
-                icon={
-                  isNavigating && navigationTarget?.id === loc.id
-                    ? navIcon
-                    : locationIcon
-                }
+                icon={finalIcon}
                 eventHandlers={{
                   click: () => handleMarkerClick(loc),
                 }}

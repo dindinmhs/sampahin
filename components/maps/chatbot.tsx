@@ -67,7 +67,6 @@ const ChatBotFloating = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiResponse, setAiResponse] = useState<string>("");
   const [isTextVisible, setIsTextVisible] = useState(false);
-  const [audioQueue, setAudioQueue] = useState<string[]>([]);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -214,7 +213,7 @@ const handleAudioGenerated = async (audioBase64: string) => {
           resolve();
         };
 
-        const handleError = (error: Event) => {
+        const handleError = () => {
           console.error('❌ Audio loading error:', {
             error: audio.error,
             code: audio.error?.code,
@@ -273,7 +272,7 @@ const handleAudioGenerated = async (audioBase64: string) => {
         cleanupAudio();
       };
 
-      const handleError = (error: Event) => {
+      const handleError = () => {
         console.error('❌ Audio playback error:', {
           error: audio.error,
           code: audio.error?.code,
@@ -401,29 +400,29 @@ const handleAudioGenerated = async (audioBase64: string) => {
       const data: ChatResponse = await response.json();
       
       // Enhanced console logging
-      console.log('=== SAMPAHIN AI CHATBOT RESULTS ===');
-      console.log('🔍 Query:', query);
-      console.log('🖼️ Has Image:', !!selectedImage);
-      console.log('🤖 Search Mode:', data.search_mode);
-      console.log('📊 Embeddings Info:');
-      console.log('   - Text Embedding:', data.embeddings_info.text_embedding_length, 'dimensions');
-      console.log('   - Image Embedding:', data.embeddings_info.image_embedding_length, 'dimensions');
-      console.log('📍 RAG Results Count:', data.rag_results.length);
-      console.log('');
+      // console.log('=== SAMPAHIN AI CHATBOT RESULTS ===');
+      // console.log('🔍 Query:', query);
+      // console.log('🖼️ Has Image:', !!selectedImage);
+      // console.log('🤖 Search Mode:', data.search_mode);
+      // console.log('📊 Embeddings Info:');
+      // console.log('   - Text Embedding:', data.embeddings_info.text_embedding_length, 'dimensions');
+      // console.log('   - Image Embedding:', data.embeddings_info.image_embedding_length, 'dimensions');
+      // console.log('📍 RAG Results Count:', data.rag_results.length);
+      // console.log('');
       
-      if (data.rag_results.length > 0) {
-        console.log('📋 Detailed Location Results:');
-        data.rag_results.forEach((result, index) => {
-          console.log(`${index + 1}. 📍 ${result.location_name}`);
-          console.log(`   🏆 Grade: ${result.grade} | Score: ${result.score}/100`);
-          console.log(`   🎯 Type: ${result.type === 'clean' ? '✅ Bersih' : '❌ Kotor'}`);
-          console.log(`   📈 Overall Similarity: ${(result.similarity_score * 100).toFixed(2)}%`);
-          console.log(`   🌍 Location: ${result.city}, ${result.province}`);
-          console.log(`   📌 Coordinates: [${result.lan.toFixed(4)}, ${result.lat.toFixed(4)}]`);
-          console.log('   ────────────────────────────');
-        });
-      }
-      console.log('===================================');
+      // if (data.rag_results.length > 0) {
+      //   console.log('📋 Detailed Location Results:');
+      //   data.rag_results.forEach((result, index) => {
+      //     console.log(`${index + 1}. 📍 ${result.location_name}`);
+      //     console.log(`   🏆 Grade: ${result.grade} | Score: ${result.score}/100`);
+      //     console.log(`   🎯 Type: ${result.type === 'clean' ? '✅ Bersih' : '❌ Kotor'}`);
+      //     console.log(`   📈 Overall Similarity: ${result.similarity_score}`)
+      //     console.log(`   🌍 Location: ${result.city}, ${result.province}`);
+      //     console.log(`   📌 Coordinates: [${result.lan.toFixed(4)}, ${result.lat.toFixed(4)}]`);
+      //     console.log('   ────────────────────────────');
+      //   });
+      // }
+      // console.log('===================================');
 
       // Send to AI Agent with RAG results
       if (aiAgent && connectionStatus === 'connected' && !aiAgent.processing) {
@@ -533,14 +532,17 @@ const handleAudioGenerated = async (audioBase64: string) => {
                 </div>
               )}
               
-              {connectionStatus === 'disconnected' && (
+              {(connectionStatus === 'disconnected' || connectionStatus === 'connecting') && (
                 <button
                   onClick={handleReconnect}
                   className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                   title="Reconnect"
                   disabled={connectionStatus === 'connecting'}
                 >
-                  <RefreshCw size={12} className={connectionStatus === 'connecting' ? 'animate-spin' : ''} />
+                  <RefreshCw 
+                    size={12} 
+                    className={connectionStatus === 'connecting' ? 'animate-spin' : ''} 
+                  />
                 </button>
               )}
             </div>
@@ -589,7 +591,9 @@ const handleAudioGenerated = async (audioBase64: string) => {
         {imagePreview && (
           <div className="p-3 border-b">
             <div className="relative inline-block">
-              <Image 
+              <Image
+                width={200}
+                height={200} 
                 src={imagePreview} 
                 alt="Preview" 
                 className="w-16 h-16 object-cover rounded border"

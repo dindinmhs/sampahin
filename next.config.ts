@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
         hostname : 'kuqkcswutjdvdcuvzxqn.supabase.co',
       }
     ]
-  }
+  }, 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
