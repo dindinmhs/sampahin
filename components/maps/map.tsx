@@ -131,6 +131,7 @@ const Maps = () => {
   const [isChatBotOpen, setIsChatBotOpen] = useState(false);
 
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
+  const [isHighlightMode, setIsHighlightMode] = useState(false);
 
   const handleOpenChatBot = () => {
     setIsChatBotOpen(true);
@@ -394,23 +395,49 @@ const Maps = () => {
   const handleNavigateToLocation = (locationId: string, transportMode: string) => {
     const location = locations.find(loc => loc.id === locationId);
     if (location && userLocation) {
+      console.log('🧭 Starting navigation to:', location.name, 'Mode:', transportMode);
+      
       setSelectedLocation(location);
       setNavigationTarget(location);
       setIsNavigating(true);
+      setIsSidebarOpen(true); // Open sidebar to show location details
       
+      // Focus map to show both user location and destination
       if (mapRef) {
-        mapRef.setView([location.lan, location.lat], 16, { animate: true });
+        const bounds = L.latLngBounds([userLocation, [location.lan, location.lat]]);
+        mapRef.fitBounds(bounds, { padding: [50, 50] });
       }
+    } else {
+      console.error('❌ Cannot navigate: location not found or user location unavailable');
     }
   };
 
   const handleHighlightLocations = (locationIds: string[], highlightType: string) => {
-    setHighlightedLocations(locationIds);
+    console.log('🔦 Highlighting locations:', locationIds, 'Type:', highlightType);
     
-    // Auto remove highlight after 5 seconds
+    setHighlightedLocations(locationIds);
+    setIsHighlightMode(true);
+    
+    // Focus map to show highlighted locations
+    if (mapRef && locationIds.length > 0) {
+      const highlightedLocs = locations.filter(loc => locationIds.includes(loc.id));
+      
+      if (highlightedLocs.length === 1) {
+        // Single location - zoom to it
+        mapRef.setView([highlightedLocs[0].lan, highlightedLocs[0].lat], 16, { animate: true });
+      } else if (highlightedLocs.length > 1) {
+        // Multiple locations - fit bounds
+        const bounds = L.latLngBounds(highlightedLocs.map(loc => [loc.lan, loc.lat]));
+        mapRef.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+    
+    // Auto remove highlight after 10 seconds
     setTimeout(() => {
       setHighlightedLocations([]);
-    }, 5000);
+      setIsHighlightMode(false);
+      console.log('🔦 Highlight mode ended');
+    }, 10000);
   };
 
   const handleSetMapFilter = (filter: string) => {
@@ -466,21 +493,41 @@ const Maps = () => {
     <div className="relative w-full h-full">
       {/* CSS untuk styling marker navigasi */}
       <style jsx>{`
+        .highlighted-marker {
+          filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) brightness(1.3);
+          animation: highlightPulse 2s infinite;
+          z-index: 1000 !important;
+        }
+
+        .non-highlighted-marker {
+          opacity: 0.3;
+          filter: grayscale(50%);
+        }
+
         .navigation-target-marker {
           filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.7));
           animation: pulse 2s infinite;
         }
 
-        @keyframes pulse {
+        @keyframes highlightPulse {
           0% {
             transform: scale(1);
+            filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) brightness(1.3);
           }
           50% {
-            transform: scale(1.1);
+            transform: scale(1.2);
+            filter: drop-shadow(0 0 25px rgba(255, 215, 0, 1)) brightness(1.5);
           }
           100% {
             transform: scale(1);
+            filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) brightness(1.3);
           }
+        }
+
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
         }
       `}</style>
 
@@ -589,6 +636,17 @@ const Maps = () => {
         </div>
       )}
 
+      {isHighlightMode && highlightedLocations.length > 0 && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[1000] bg-yellow-500 text-white px-4 py-2 rounded-full shadow-lg">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <span className="font-semibold text-sm">
+              Menyorot {highlightedLocations.length} lokasi
+            </span>
+          </div>
+        </div>
+      )}
+
       <MapContainer
         zoomControl={false}
         center={[-6.2, 106.8]}
@@ -648,19 +706,17 @@ const Maps = () => {
           // Tentukan apakah lokasi bersih berdasarkan grade
           const isClean = isCleanLocation(loc.id);
 
-          // Filter berdasarkan kategori yang dipilih
-          if (
-            categoryFilter === "clean" &&
-            (!isClean || loc.type === "cleaning")
-          )
+          // Filter berdasarkan kategori yang dipilih (kecuali dalam highlight mode)
+          if (!isHighlightMode) {
+            if (categoryFilter === "clean" && (!isClean || loc.type === "cleaning")) return null;
+            if (categoryFilter === "dirty" && (isClean || loc.type === "cleaning")) return null;
+            if (categoryFilter === "cleaning" && loc.type !== "cleaning") return null;
+          }
+
+          // Dalam highlight mode, hanya tampilkan lokasi yang di-highlight
+          if (isHighlightMode && !highlightedLocations.includes(loc.id)) {
             return null;
-          if (
-            categoryFilter === "dirty" &&
-            (isClean || loc.type === "cleaning")
-          )
-            return null;
-          if (categoryFilter === "cleaning" && loc.type !== "cleaning")
-            return null;
+          }
 
           // Pilih ikon berdasarkan tipe lokasi
           let locationIcon;
@@ -672,12 +728,7 @@ const Maps = () => {
 
           // Ikon untuk target navigasi
           const navIcon = L.icon({
-            iconUrl:
-              loc.type === "cleaning"
-                ? "/cleaning.png"
-                : isClean
-                ? "/clean.png"
-                : "/dirty.png",
+            iconUrl: loc.type === "cleaning" ? "/cleaning.png" : isClean ? "/clean.png" : "/dirty.png",
             iconSize: [40, 40],
             iconAnchor: [20, 20],
             popupAnchor: [0, -20],
@@ -685,28 +736,51 @@ const Maps = () => {
             className: "navigation-target-marker",
           });
 
+          // Ikon untuk highlight
+          const highlightIcon = L.icon({
+            iconUrl: loc.type === "cleaning" ? "/cleaning.png" : isClean ? "/clean.png" : "/dirty.png",
+            iconSize: [45, 45],
+            iconAnchor: [22.5, 22.5],
+            popupAnchor: [0, -22.5],
+            shadowUrl: undefined,
+            className: "highlighted-marker",
+          });
+
+          // Determine which icon to use
+          let finalIcon = locationIcon;
+          if (isNavigating && navigationTarget?.id === loc.id) {
+            finalIcon = navIcon;
+          } else if (isHighlightMode && highlightedLocations.includes(loc.id)) {
+            finalIcon = highlightIcon;
+          }
+
           return (
             <div key={`location-${loc.id}-${index}`}>
               {/* Tampilkan Circle hanya jika lokasi ini dipilih */}
               {selectedLocation && selectedLocation.id === loc.id && (
                 <Circle
                   center={[loc.lan, loc.lat]}
-                  radius={100} // Radius dalam meter
+                  radius={100}
                   pathOptions={{
-                    color:
-                      loc.type === "cleaning"
-                        ? "#FFA500" // Orange untuk lokasi yang sedang dibersihkan
-                        : isClean
-                        ? "#22c55e" // Hijau untuk lokasi bersih
-                        : "#ef4444", // Merah untuk lokasi kotor
-                    fillColor:
-                      loc.type === "cleaning"
-                        ? "#FFA50033" // Orange dengan transparansi
-                        : isClean
-                        ? "#22c55e33" // Hijau dengan transparansi
-                        : "#ef444433", // Merah dengan transparansi
+                    color: loc.type === "cleaning" ? "#FFA500" : isClean ? "#22c55e" : "#ef4444",
+                    fillColor: loc.type === "cleaning" ? "#FFA50033" : isClean ? "#22c55e33" : "#ef444433",
                     fillOpacity: 0.9,
                     weight: 0,
+                  }}
+                />
+              )}
+              
+              {/* Highlight Circle for highlighted locations */}
+              {isHighlightMode && highlightedLocations.includes(loc.id) && (
+                <Circle
+                  center={[loc.lan, loc.lat]}
+                  radius={200}
+                  pathOptions={{
+                    color: "#FFD700",
+                    fillColor: "#FFD70033",
+                    fillOpacity: 0.6,
+                    weight: 3,
+                    dashArray: "10, 10",
                   }}
                 />
               )}
@@ -732,6 +806,7 @@ const Maps = () => {
             endPosition={[navigationTarget.lan, navigationTarget.lat]}
             isNavigating={isNavigating}
             onOpenGoogleMaps={handleShowGoogleMapsOption}
+            triggeredByAI={true} // Indicate this was triggered by AI
           />
         )}
       </MapContainer>

@@ -77,6 +77,7 @@ interface RoutingMachineProps {
   startPosition: [number, number] | null;
   endPosition: [number, number] | null;
   isNavigating: boolean;
+  triggeredByAI?: boolean; 
   onOpenGoogleMaps?: (start: [number, number], end: [number, number]) => void;
 }
 
@@ -85,6 +86,7 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
   endPosition,
   isNavigating,
   onOpenGoogleMaps,
+  triggeredByAI = false 
 }) => {
   const map = useMap();
   const routingControlRef = useRef<RoutingControl | null>(null);
@@ -137,6 +139,10 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
       // Cleanup existing routing control if navigation is turned off
       cleanupRoutingControl();
       return;
+    }
+
+    if (triggeredByAI) {
+      console.log('🤖 Route triggered by AI Agent');
     }
 
     // Prevent multiple initializations
@@ -294,7 +300,7 @@ const RoutingMachine: React.FC<RoutingMachineProps> = ({
         setupTimeoutRef.current = null;
       }
     };
-  }, [map, startPosition, endPosition, isNavigating, cleanupRoutingControl, onOpenGoogleMaps, isMobile]);
+  }, [map, startPosition, endPosition, isNavigating, cleanupRoutingControl, onOpenGoogleMaps, isMobile, triggeredByAI]);
 
   // Cleanup effect when component unmounts
   useEffect(() => {
