@@ -44,6 +44,7 @@ export class AIAgentService {
   private isProcessing: boolean = false;
   private audioChunks: string[] = [];
   private isPlayingAudio: boolean = false;
+  private pendingFunctionCalls: Array<{name: string, args: unknown, id: string}> = [];
 
   constructor(config: AIAgentConfig) {
     this.config = config;
@@ -219,6 +220,7 @@ private buildSystemPrompt(ragContext: string): string {
 2. Call appropriate functions DURING or AFTER your explanation
 3. Function calls can happen at any time during conversation, not just at the start
 4. Explain what you're showing while calling the functions
+5. LANGSUNG GUNAKAN DATA RAG - Jangan tanya tempat apa yang dimaksud, gunakan hasil similarity yang tinggi
 
 ## Your Identity:
 Voice assistant untuk aplikasi Sampahin - monitoring kebersihan lingkungan Indonesia.
@@ -233,6 +235,14 @@ ${ragContext}
 1. **Start with conversational audio explanation**
 2. **Call functions while or after explaining** 
 3. **Continue explaining what the user will see**
+
+## RAG DATA USAGE RULES:
+- JIKA ada data RAG dengan similarity_score > 0.3, LANGSUNG gunakan data tersebut
+- JANGAN tanya "tempat apa yang dimaksud" atau "lokasi mana yang Anda maksud"
+- PRIORITAS: text_similarity dan image_similarity yang tinggi = jawaban yang tepat
+- UNTUK GAMBAR: Similarity > 0.4 = PASTI benar, langsung gunakan
+- UNTUK TEKS: Similarity > 0.5 = PASTI benar, langsung gunakan
+- Jika ada multiple results, pilih yang similarity tertinggi
 
 ## FUNCTION CALL MAPPING:
 
@@ -254,18 +264,31 @@ ${ragContext}
 - THEN CALL: highlight_locations([location_ids_from_RAG], highlight_type: "pulse")
 - Continue: "Sekarang Anda bisa melihat lokasi-lokasi tersebut tersorot di peta dengan warna yang berbeda."
 
+### For IMAGE queries - DIRECT RECOGNITION:
+- JIKA user kirim gambar DAN ada hasil RAG dengan image_similarity > 0.4:
+- Audio Response: "Saya dapat mengenali lokasi ini! Ini adalah [nama lokasi] di [alamat]. Berdasarkan gambar yang Anda kirim, lokasi ini memiliki grade [grade] dengan skor [score]. [Deskripsi kondisi]"
+- THEN CALL: show_location_details(location_id_with_highest_similarity, focus_map: true)
+- Continue: "Detail lengkap lokasi sudah ditampilkan di sidebar."
+
 ## ENHANCED EXAMPLES WITH NATURAL FLOW:
+
+**Input**: Gambar lokasi + "ini dimana?"
+**DON'T ASK**: "Bisa tolong jelaskan tempat apa yang dimaksud?"
+**DO THIS**: 
+Audio: "Saya dapat mengenali lokasi ini! Ini adalah Taman Kota Bandung di Jalan Asia Afrika. Berdasarkan gambar, kondisi kebersihan saat ini grade B dengan skor 75 dari 100. Tempat ini cukup bersih dengan beberapa area yang perlu perbaikan."
+Function: show_location_details("BANDUNG_001", true)
+Audio continues: "Detail lengkap sudah ditampilkan di sidebar untuk Anda."
 
 **Input**: "Tampilkan detail lokasi Tasik"
 **Response**:
 Audio: "Baik, saya akan menampilkan detail Tasik untuk Anda. Lokasi ini berada di Tasikmalaya, Jawa Barat dengan grade kebersihan D dan skor 20 dari 100. Kondisi cukup kotor dan memerlukan pembersihan."
-Function: show_location_details("TASIK_001", true) // Called during explanation
+Function: show_location_details("TASIK_001", true)
 Audio continues: "Sekarang sidebar detail telah terbuka dan Anda bisa melihat informasi lengkapnya."
 
 **Input**: "Lokasi kotor yang ada di Tasik ada apa saja?"
 **Response**:
 Audio: "Mari saya cari lokasi kotor di area Tasikmalaya. Dari data yang tersedia, ada beberapa lokasi dengan kondisi kurang baik di area tersebut."
-Function: highlight_locations(["TASIK_001", "TASIK_002"], "pulse") // Called while explaining
+Function: highlight_locations(["TASIK_001", "TASIK_002"], "pulse")
 Audio continues: "Saya telah menyorot 2 lokasi kotor di Tasik. Yang terkotor adalah [nama] dengan grade D. Lokasi-lokasi ini terlihat berkedip di peta."
 
 ## CRITICAL RULES:
@@ -274,8 +297,17 @@ Audio continues: "Saya telah menyorot 2 lokasi kotor di Tasik. Yang terkotor ada
 - Continue explaining what the user will see after function call
 - Use real data from RAG results in your audio response
 - Be conversational and helpful, not robotic
+- LANGSUNG GUNAKAN DATA RAG DENGAN SIMILARITY TINGGI - NO QUESTIONS!
+- UNTUK GAMBAR: Confidence tinggi = langsung jawab dengan detail lokasi
 
-Remember: Talk first, act during talking, explain what happened!`;
+## SIMILARITY SCORE INTERPRETATION:
+- > 0.8 = SANGAT YAKIN, langsung detail lengkap
+- > 0.6 = YAKIN, langsung jawab dengan detail
+- > 0.4 = CUKUP YAKIN, jawab dengan sedikit disclaimer "Sepertinya ini adalah..."
+- > 0.3 = MUNGKIN, jawab dengan "Kemungkinan ini adalah..."
+- < 0.3 = TIDAK YAKIN, baru tanya klarifikasi
+
+Remember: Talk first, act during talking, explain what happened! GUNAKAN DATA RAG LANGSUNG!`;
 }
 
   private async handleTurn(): Promise<LiveServerMessage[]> {
@@ -396,25 +428,28 @@ Remember: Talk first, act during talking, explain what happened!`;
       turnComplete: message.serverContent?.turnComplete
     });
 
-    // 1. Handle function calls first (from documentation)
+    // 1. Store function calls for later execution (MODIFIED)
     if (message.toolCall) {
       console.log('🔧 Function calls found:', message.toolCall.functionCalls?.length || 0);
       
-      message.toolCall.functionCalls?.forEach(
-        functionCall => {
-          console.log(`🎯 Execute function ${functionCall.name} with arguments:`, JSON.stringify(functionCall.args));
-          // Execute the function
-          this.executeFunctionCall(functionCall.name, functionCall.args);
-        }
-      );
+      message.toolCall.functionCalls?.forEach(functionCall => {
+        console.log(`📝 Storing function call: ${functionCall.name}`, JSON.stringify(functionCall.args));
+        
+        // Store function call instead of executing immediately
+        this.pendingFunctionCalls.push({
+          name: functionCall.name ?? '',
+          args: functionCall.args,
+          id: functionCall.id ?? ''
+        });
+      });
 
-      // CRITICAL: Send tool response exactly like documentation
+      // Send tool response like before
       this.session?.sendToolResponse({
         functionResponses:
           message.toolCall.functionCalls?.map(functionCall => ({
             id: functionCall.id,
             name: functionCall.name,
-            response: { response: 'Function executed successfully' } // Simple response like docs
+            response: { response: 'Function queued for execution' } // Updated response
           })) ?? []
       });
     }
@@ -428,21 +463,23 @@ Remember: Talk first, act during talking, explain what happened!`;
           this.config.onTextGenerated?.(part.text);
         }
 
-        // Handle audio content (from documentation pattern)
+        // Handle audio content
         if (part?.inlineData) {
           console.log(`🎵 Audio chunk ${index} received:`, {
             mimeType: part.inlineData.mimeType,
             dataSize: part.inlineData.data?.length
           });
           
-          // Collect audio parts like documentation
           this.audioChunks.push(part.inlineData.data ?? '');
         }
       });
     }
   }
 
-  private createWavHeader(dataLength: number, options: any): Buffer {
+  private createWavHeader(
+    dataLength: number,
+    options: { numChannels: number; sampleRate: number; bitsPerSample: number }
+  ): Buffer {
     const { numChannels, sampleRate, bitsPerSample } = options;
     const byteRate = sampleRate * numChannels * bitsPerSample / 8;
     const blockAlign = numChannels * bitsPerSample / 8;
@@ -476,7 +513,7 @@ Remember: Talk first, act during talking, explain what happened!`;
 
   private parseMimeType(mimeType: string) {
     const [fileType, ...params] = mimeType.split(';').map(s => s.trim());
-    const [_, format] = fileType.split('/');
+    const [, format] = fileType.split('/');
 
     const options = {
       numChannels: 1,
@@ -501,11 +538,12 @@ Remember: Talk first, act during talking, explain what happened!`;
     return options;
   }
 
-  private processCompleteAudio() {
+   private processCompleteAudio() {
     console.log(`🎵 Processing ${this.audioChunks.length} audio chunks...`);
+    console.log(`🔧 Processing ${this.pendingFunctionCalls.length} pending function calls...`);
     
-    if (this.audioChunks.length === 0) {
-      console.log('⚠️ No audio chunks to process');
+    if (this.audioChunks.length === 0 && this.pendingFunctionCalls.length === 0) {
+      console.log('⚠️ No audio chunks or function calls to process');
       return;
     }
     
@@ -515,27 +553,47 @@ Remember: Talk first, act during talking, explain what happened!`;
     }
 
     try {
-      // Combine audio chunks like documentation
-      const combinedAudioData = this.audioChunks.join('');
-      console.log('🔗 Combined audio data size:', combinedAudioData.length);
-      
-      if (combinedAudioData.length === 0) {
-        console.warn('❌ Combined audio data is empty');
-        this.audioChunks = [];
-        return;
+      // Execute pending function calls FIRST (ADDED)
+      if (this.pendingFunctionCalls.length > 0) {
+        console.log('🚀 Executing queued function calls...');
+        this.pendingFunctionCalls.forEach((functionCall, index) => {
+          console.log(`🎯 Executing queued function ${index + 1}:`, {
+            name: functionCall.name,
+            args: functionCall.args,
+            id: functionCall.id
+          });
+          
+          this.executeFunctionCall(functionCall.name, functionCall.args);
+        });
+        
+        // Clear pending function calls
+        this.pendingFunctionCalls = [];
+        console.log('✅ All queued function calls executed');
       }
 
-      // Convert to WAV using documentation method
-      const audioBuffer = this.convertToWav(this.audioChunks, 'audio/pcm;rate=24000');
-      const audioBase64 = audioBuffer.toString('base64');
-      
-      console.log(`🔊 Sending complete audio to UI (${audioBase64.length} chars)`);
-      this.config.onAudioGenerated(audioBase64);
+      // Process audio if available
+      if (this.audioChunks.length > 0) {
+        const combinedAudioData = this.audioChunks.join('');
+        console.log('🔗 Combined audio data size:', combinedAudioData.length);
+        
+        if (combinedAudioData.length === 0) {
+          console.warn('❌ Combined audio data is empty');
+          this.audioChunks = [];
+          return;
+        }
+
+        const audioBuffer = this.convertToWav(this.audioChunks, 'audio/pcm;rate=24000');
+        const audioBase64 = audioBuffer.toString('base64');
+        
+        console.log(`🔊 Sending complete audio to UI (${audioBase64.length} chars)`);
+        this.config.onAudioGenerated(audioBase64);
+      }
       
     } catch (error) {
-      console.error('❌ Error processing complete audio:', error);
+      console.error('❌ Error processing complete audio and functions:', error);
     } finally {
       this.audioChunks = [];
+      this.pendingFunctionCalls = []; // Ensure cleanup
     }
   }
 
@@ -619,7 +677,7 @@ Remember: Talk first, act during talking, explain what happened!`;
       header.write('data', 36);
       header.writeUInt32LE(rawAudioData.length, 40);
 
-      let audioBuffer = Buffer.concat([header, rawAudioData]);
+      let audioBuffer: Buffer = Buffer.concat([header, rawAudioData]);
       
       if (AudioProcessor?.normalizeAudioVolume) audioBuffer = AudioProcessor.normalizeAudioVolume(audioBuffer);
       if (AudioProcessor?.removeClicks) audioBuffer = AudioProcessor.removeClicks(audioBuffer);
@@ -651,5 +709,6 @@ Remember: Talk first, act during talking, explain what happened!`;
     this.isConnecting = false;
     this.responseQueue = [];
     this.audioChunks = [];
+    this.pendingFunctionCalls = []; // Add cleanup for pending function calls
   }
 }

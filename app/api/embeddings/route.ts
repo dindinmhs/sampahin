@@ -20,7 +20,10 @@ export async function POST(request: NextRequest) {
     // Setup Google Auth
     const auth = new GoogleAuth({
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
+      credentials: JSON.parse(
+        process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ??
+        (() => { throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON env variable is not set'); })()
+      )
     });
 
     const authClient = await auth.getClient();
