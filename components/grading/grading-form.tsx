@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useState, useRef, Dispatch, SetStateAction, useEffect } from "react";
-import { Camera, Upload, X } from "lucide-react";
+import { Camera, Upload, X, RotateCcw, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { DragCloseDrawer } from "../common/modal";
 import { Input } from "../ui/input";
@@ -29,7 +29,7 @@ export const GradingForm = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [open, setOpen] = useState(false);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment"); // Default ke kamera belakang
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
 
   const [analysisResult, setAnalysisResult] =
     useState<AnalysisResultProps | null>(null);
@@ -50,128 +50,51 @@ export const GradingForm = () => {
 
   const startCamera = async () => {
     setCameraError(null);
-    setIsCapturing(true); // Set capturing state immediately to show UI feedback
-    
+    setIsCapturing(true);
+
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API not supported in this browser");
       }
 
-      // Try environment (back) camera first for better user experience
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment", // Start with back camera by default
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          setFacingMode("environment"); // Update facing mode state
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch((err) => {
-              console.error("Error playing video:", err);
-              setCameraError("Gagal memulai video kamera. Silakan coba lagi.");
-              setIsCapturing(false); // Reset capturing state on error
-            });
-          };
-        }
-      } catch (backCameraError) {
-        console.error("Back camera access failed:", backCameraError);
-        console.log("Back camera access failed, trying front camera");
-        
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "user", // Try front camera
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setFacingMode("environment");
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch((err) => {
+            console.error("Error playing video:", err);
+            setCameraError("Gagal memutar video kamera");
           });
-
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            setFacingMode("user"); // Update facing mode state
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play().catch((err) => {
-                console.error("Error playing video:", err);
-                setCameraError(
-                  "Gagal memulai video kamera. Silakan coba lagi."
-                );
-                setIsCapturing(false); // Reset capturing state on error
-              });
-            };
-          }
-        } catch (frontCameraError) {
-          console.error("Front camera access failed:", frontCameraError);
-          console.log("Front camera access failed, trying generic camera access");
-          
-          // Last resort - try generic video access
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-            });
-
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              videoRef.current.onloadedmetadata = () => {
-                videoRef.current?.play().catch((err) => {
-                  console.error("Error playing video:", err);
-                  setCameraError(
-                    "Gagal memulai video kamera. Silakan coba lagi."
-                  );
-                  setIsCapturing(false); // Reset capturing state on error
-                });
-              };
-            }
-          } catch (genericError) {
-            throw genericError; // Re-throw to be caught by outer catch block
-          }
-        }
+        };
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      let errorMessage = "Tidak dapat mengakses kamera. ";
-
-      if (error instanceof Error) {
-        if (error.name === "NotAllowedError") {
-          errorMessage +=
-            "Izin kamera ditolak. Silakan izinkan akses kamera di browser.";
-        } else if (error.name === "NotFoundError") {
-          errorMessage += "Kamera tidak ditemukan pada perangkat ini.";
-        } else if (error.name === "NotSupportedError") {
-          errorMessage += "Browser tidak mendukung akses kamera.";
-        } else if (error.name === "OverconstrainedError") {
-          errorMessage += "Resolusi kamera yang diminta tidak didukung.";
-        } else {
-          errorMessage += `Error: ${error.message}`;
-        }
-      }
-
-      setCameraError(errorMessage);
+      setCameraError("Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser.");
       setIsCapturing(false);
     }
   };
 
   const toggleCamera = async () => {
-    // Show loading state or indicator
     setCameraError(null);
-    
-    // Stop current camera stream
+
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
 
-    // Toggle camera direction
     const newFacingMode = facingMode === "user" ? "environment" : "user";
     setFacingMode(newFacingMode);
 
     try {
-      // Request camera with new facing mode
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: newFacingMode,
@@ -180,50 +103,18 @@ export const GradingForm = () => {
         },
       });
 
-      // Set video stream and play
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((err) => {
             console.error("Error playing video:", err);
-            setCameraError("Gagal memutar video kamera. Silakan coba lagi.");
-            setIsCapturing(false); // Reset capturing state on error
+            setCameraError("Gagal memutar video kamera");
           });
         };
       }
     } catch (error) {
       console.error("Error toggling camera:", error);
       setCameraError("Gagal mengganti kamera. Silakan coba lagi.");
-      
-      // Try the opposite camera as fallback
-      try {
-        const fallbackMode = newFacingMode === "user" ? "environment" : "user";
-        setFacingMode(fallbackMode);
-        
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: fallbackMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = fallbackStream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch((err) => {
-              console.error("Error playing fallback video:", err);
-              setCameraError("Gagal memutar video kamera. Silakan coba lagi.");
-              setIsCapturing(false); // Reset capturing state on error
-            });
-          };
-          setCameraError("Kamera yang dipilih tidak tersedia, menggunakan kamera alternatif.");
-        }
-      } catch (fallbackError) {
-        console.error("Error with fallback camera:", fallbackError);
-        setCameraError("Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser Anda.");
-        setIsCapturing(false); // Reset capturing state on complete failure
-      }
     }
   };
 
@@ -245,9 +136,10 @@ export const GradingForm = () => {
                 type: "image/jpeg",
               });
               setSelectedImage(file);
-              setPreviewUrl(URL.createObjectURL(file));
-              setAnalysisResult(null);
+              const url = URL.createObjectURL(file);
+              setPreviewUrl(url);
               stopCamera();
+              setAnalysisResult(null);
             }
           },
           "image/jpeg",
@@ -336,225 +228,259 @@ export const GradingForm = () => {
   };
 
   return (
-    <div className="bg-gray-50 p-4 min-h-screen">
-      <div className="max-w-2xl mx-auto py-10">
-        {/* Main Content Card */}
-        <div className="bg-white rounded-lg shadow-sm px-6 py-2">
-          {/* Foto Label */}
-          <div className="mb-4">
-            <h2 className="text-sm font-medium text-gray-700 mb-3">Foto Lokasi untuk di grading</h2>
-
-            {/* Upload Options */}
-            <div className="flex gap-2 mb-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                disabled={isCapturing}
-              >
-                <Upload className="w-3 h-3" />
-                Pilih Foto
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={startCamera}
-                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                disabled={isCapturing}
-              >
-                <Camera className="w-3 h-3" />
-                Buka Kamera
-              </Button>
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-              aria-label="Upload image file"
-            />
+    <div className="p-4">
+      <div className="max-w-4xl mx-auto py-10">
+        {/* Header */}
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 px-6 py-6">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">
+              Grading Lokasi
+            </h1>
+            <p className="text-slate-600">
+              Ambil foto lokasi untuk mendapatkan penilaian kebersihan
+            </p>
           </div>
 
-          {/* Camera Error */}
-          {cameraError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {cameraError}
-            </div>
-          )}
-
-          {/* Camera View */}
-          {isCapturing && (
-            <div className="mb-4">
-              <div className="relative">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full aspect-video rounded-2xl border border-gray-200"
-                />
-                <div className="mt-3 flex gap-2 justify-center">
-                  <Button
-                    type="button"
-                    onClick={toggleCamera}
-                    className="bg-gray-500 hover:bg-gray-600 text-white text-xs px-4 py-2 h-8 rounded-full"
-                  >
-                    Ganti Kamera
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={capturePhoto}
-                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-4 py-2 h-8 rounded-full"
-                  >
-                    Ambil Foto
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={stopCamera}
-                    className="text-xs px-4 py-2 h-8 rounded-full"
-                  >
-                    Batal
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Image Preview */}
-          {previewUrl && !isCapturing && (
-            <div className="mb-4">
-              <div className="relative">
-                <Image
-                  src={previewUrl}
-                  width={400}
-                  height={300}
-                  alt="Preview"
-                  className="w-full h-48 rounded-lg border border-gray-200 object-cover"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={removeImage}
-                  className="absolute top-2 right-2 w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500 rounded-full"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Analysis Result */}
-          {analysisResult && (
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-800 mb-2">
-                Hasil Analisis AI
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
-                <div className="space-y-2">
-                  {/* Only show score and grade if it's a valid grading result */}
-                  {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
-                    <div className="flex justify-start gap-8">
-                      <div className="flex flex-col justify-center items-center">
-                        <span className="font-medium">Skor Kebersihan:</span>
-                        <span
-                          className={`font-bold px-2 py-1 rounded text-4xl ${
-                            analysisResult.grade === "A"
-                              ? "text-green-500"
-                              : analysisResult.grade === "B"
-                              ? "text-blue-500"
-                              : analysisResult.grade === "C"
-                              ? "text-yellow-500"
-                              : analysisResult.grade === "D"
-                              ? "text-orange-600"
-                              : analysisResult.grade === "E"
-                              ? "text-red-500"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {analysisResult.skor_kebersihan}
-                        </span>
-                      </div>
-                      <div className="flex flex-col justify-center items-center">
-                        <span className="font-medium">Grade:</span>
-                        <span
-                          className={`font-bold px-2 py-1 rounded text-4xl ${
-                            analysisResult.grade === "A"
-                              ? "text-green-500"
-                              : analysisResult.grade === "B"
-                              ? "text-blue-500"
-                              : analysisResult.grade === "C"
-                              ? "text-yellow-500"
-                              : analysisResult.grade === "D"
-                              ? "text-orange-600"
-                              : analysisResult.grade === "E"
-                              ? "text-red-500"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {analysisResult.grade}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <div className={analysisResult.skor_kebersihan !== null && analysisResult.grade !== null ? "mt-3 pt-2 border-t border-gray-200" : ""}>
-                    <p className="text-gray-600 leading-relaxed">
-                      {analysisResult.deskripsi ?? "Tidak tersedia"}
+          {/* Image Upload Section */}
+          {!isCapturing && !previewUrl && (
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50/50">
+                <div className="space-y-4">
+                  <div className="mx-auto w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center">
+                    <Upload className="w-8 h-8 text-teal-600" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-medium text-slate-800 mb-2">
+                      Upload Foto Lokasi
                     </p>
+                    <p className="text-sm text-slate-600">
+                      Pilih foto lokasi untuk dinilai kebersihannya
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-teal-500 hover:bg-teal-600 text-white"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Pilih dari Galeri
+                    </Button>
+                    <Button
+                      onClick={startCamera}
+                      variant="outline"
+                      className="border-teal-500 text-teal-500 hover:bg-teal-50"
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Buka Kamera
+                    </Button>
                   </div>
                 </div>
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
+          )}
+
+          {/* Camera Section */}
+          {isCapturing && (
+            <div className="space-y-4">
+              <div className="relative">
+                {cameraError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+                    <p className="text-red-800 mb-4">{cameraError}</p>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        onClick={startCamera}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        Coba Lagi
+                      </Button>
+                      <Button onClick={stopCamera} variant="outline">
+                        Batal
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative bg-black rounded-xl overflow-hidden">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-auto max-h-96 object-cover"
+                    />
+                    <div className="absolute top-4 right-4 flex gap-2">
+                      <Button
+                        onClick={toggleCamera}
+                        size="sm"
+                        variant="secondary"
+                        className="bg-white/80 hover:bg-white"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {!cameraError && (
+                <div className="flex gap-3 justify-center">
+                  <Button
+                    onClick={capturePhoto}
+                    className="bg-teal-500 hover:bg-teal-600 text-white"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Ambil Foto
+                  </Button>
+                  <Button onClick={stopCamera} variant="outline">
+                    Batal
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Image Preview Section */}
+          {previewUrl && (
+            <div className="space-y-4">
+              <div className="relative">
+                <Image
+                  src={previewUrl}
+                  alt="Preview"
+                  width={400}
+                  height={300}
+                  className="w-full h-auto max-h-96 object-contain rounded-xl border border-slate-200"
+                />
+                <Button
+                  onClick={removeImage}
+                  size="sm"
+                  variant="destructive"
+                  className="absolute top-2 right-2"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="text-center">
+                <Button
+                  onClick={handleAnalysis}
+                  disabled={isAnalyzing}
+                  className="bg-teal-500 hover:bg-teal-600 text-white px-8 py-3 text-lg"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Menganalisis...
+                    </>
+                  ) : (
+                    "Analisis Kebersihan"
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Analysis/Share Button */}
-        <div className="mt-4">
-          {analysisResult ? (
-            <>
-              {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null ? (
-                // Valid grading result - show share button
-                <Button
-                  onClick={() => setOpen(true)}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-                >
-                  Bagikan
-                </Button>
-              ) : (
-                // Not a grading image - show "Coba Gambar Lain" button
-                <div className="text-center">
-                  <Button
-                    onClick={() => {
-                      removeImage();
-                      setAnalysisResult(null);
-                    }}
-                    variant="outline"
-                    className="w-full py-3 text-sm font-medium rounded-full"
-                  >
-                    Coba Gambar Lain
-                  </Button>
+        {/* Analysis Results */}
+        {analysisResult && (
+          <div className="mt-6">
+            <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                📊 Hasil Penilaian
+              </h2>
+              
+              <div className="space-y-6">
+                {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border border-teal-200 text-center">
+                      <h4 className="font-semibold text-teal-800 mb-2">Skor Kebersihan</h4>
+                      <span
+                        className={`font-bold text-4xl ${
+                          analysisResult.grade === "A"
+                            ? "text-green-500"
+                            : analysisResult.grade === "B"
+                            ? "text-blue-500"
+                            : analysisResult.grade === "C"
+                            ? "text-yellow-500"
+                            : analysisResult.grade === "D"
+                            ? "text-orange-600"
+                            : analysisResult.grade === "E"
+                            ? "text-red-500"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {analysisResult.skor_kebersihan}
+                      </span>
+                    </div>
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 text-center">
+                      <h4 className="font-semibold text-purple-800 mb-2">Grade</h4>
+                      <span
+                        className={`font-bold text-4xl ${
+                          analysisResult.grade === "A"
+                            ? "text-green-500"
+                            : analysisResult.grade === "B"
+                            ? "text-blue-500"
+                            : analysisResult.grade === "C"
+                            ? "text-yellow-500"
+                            : analysisResult.grade === "D"
+                            ? "text-orange-600"
+                            : analysisResult.grade === "E"
+                            ? "text-red-500"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {analysisResult.grade}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                  <h4 className="font-semibold text-slate-800 mb-3">Deskripsi</h4>
+                  <p className="text-slate-700 leading-relaxed">
+                    {analysisResult.deskripsi ?? "Tidak tersedia"}
+                  </p>
                 </div>
-              )}
-            </>
-          ) : (
-            <Button
-              onClick={handleAnalysis}
-              disabled={!selectedImage || isAnalyzing}
-              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-            >
-              {isAnalyzing ? "Menganalisis..." : "Analisis"}
-            </Button>
-          )}
-        </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* Hidden canvas for photo capture */}
+        {/* Share Button */}
+        {analysisResult && analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
+          <div className="mt-6">
+            <Button
+              onClick={() => setOpen(true)}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-lg font-medium rounded-xl"
+            >
+              Bagikan Hasil
+            </Button>
+          </div>
+        )}
+
+        {/* Try Again Button for Non-Grading Images */}
+        {analysisResult && (analysisResult.skor_kebersihan === null || analysisResult.grade === null) && (
+          <div className="mt-6 text-center">
+            <Button
+              onClick={() => {
+                removeImage();
+                setAnalysisResult(null);
+              }}
+              variant="outline"
+              className="w-full py-3 text-lg font-medium rounded-xl"
+            >
+              Coba Gambar Lain
+            </Button>
+          </div>
+        )}
+
+        {/* Hidden Canvas */}
         <canvas ref={canvasRef} className="hidden" />
 
+        {/* Share Modal */}
         {selectedImage && analysisResult && analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
           <GradeShareForm
             selectedImage={selectedImage}
@@ -568,6 +494,7 @@ export const GradingForm = () => {
   );
 };
 
+// Rest of the GradeShareForm component remains the same...
 interface Props {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;

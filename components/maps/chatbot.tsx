@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, Send, X, Loader2, ImageIcon, Volume2, VolumeX, RefreshCw } from "lucide-react";
+import { Sparkles, Send, X, Loader2, ImageIcon, Volume2, VolumeX, RefreshCw } from "lucide-react";
 import { AIAgentService } from "@/lib/ai-agent/maps-ai-agent";
 import Image from "next/image";
 
@@ -486,10 +486,10 @@ const handleAudioGenerated = async (audioBase64: string) => {
       <div className="fixed bottom-4 right-4 z-[60]">
         <button
           onClick={onToggle}
-          className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all duration-200 flex items-center justify-center hover:scale-110"
+          className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white p-3 rounded-full shadow-lg transition-all duration-200 flex items-center justify-center hover:scale-110 animate-pulse"
           title="Tanya AI Assistant"
         >
-          <MessageCircle size={24} />
+          <Sparkles size={24} className="text-white drop-shadow-sm" />
         </button>
       </div>
     );
@@ -500,10 +500,13 @@ const handleAudioGenerated = async (audioBase64: string) => {
     <div className="fixed bottom-4 right-20 z-[60] w-80" onClick={handleClickOutside}>
       <div className="bg-white rounded-lg shadow-xl border border-gray-200">
       {isTextVisible && aiResponse && (
-          <div className="p-3 bg-blue-50 border-b border-blue-200">
+          <div className="p-3 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <p className="text-sm text-blue-800 font-medium mb-1">AI Response:</p>
+                <p className="text-sm text-blue-800 font-medium mb-1 flex items-center gap-1">
+                  <Sparkles size={12} className="text-blue-600" />
+                  AI Response:
+                </p>
                 <p className="text-sm text-blue-700">{aiResponse}</p>
               </div>
               <button
@@ -516,10 +519,17 @@ const handleAudioGenerated = async (audioBase64: string) => {
           </div>
         )}
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b bg-blue-50 rounded-t-lg">
+        <div className="flex items-center justify-between p-3 border-b bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-lg">
           <div className="flex items-center space-x-2">
-            <MessageCircle className="text-blue-600" size={20} />
-            <h4 className="text-sm font-semibold text-gray-800">AI Assistant</h4>
+            <div className="relative">
+              <Sparkles className="text-blue-600" size={20} />
+              {connectionStatus === 'connected' && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              )}
+            </div>
+            <h4 className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              AI Assistant
+            </h4>
             {/* Connection Status Indicator */}
             <div className="flex items-center space-x-1">
               <div className={`w-2 h-2 rounded-full ${
@@ -666,7 +676,7 @@ const handleAudioGenerated = async (audioBase64: string) => {
                 // Also disable if no input at all
                 (!query.trim() && !selectedImage)
               }
-              className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+              className="px-4 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm rounded hover:from-blue-600 hover:to-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center space-x-1"
             >
               {isLoading || isProcessing ? (
                 <>
