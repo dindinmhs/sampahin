@@ -823,68 +823,158 @@ const GradeShareForm = ({
 
   return (
     <DragCloseDrawer open={open} setOpen={setOpen}>
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col gap-4">
-          <div>
-            <Label htmlFor="nama" className="text-sm font-medium text-gray-700">
-              Nama <span className="text-red-500">*</span>
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">
+            Bagikan Hasil Penilaian
+          </h2>
+          <p className="text-slate-600">
+            Masukkan informasi lokasi untuk membagikan hasil ke komunitas
+          </p>
+        </div>
+
+        {/* Analysis Summary Card */}
+        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-2xl p-6 mb-8 border border-teal-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-teal-800">Hasil Penilaian</h3>
+            <div className="flex items-center gap-3">
+              <div className="text-center">
+                <span className="text-sm text-teal-600 block">Skor</span>
+                <span className={`font-bold text-xl ${
+                  analysis_result?.grade === "A" ? "text-green-500" :
+                  analysis_result?.grade === "B" ? "text-blue-500" :
+                  analysis_result?.grade === "C" ? "text-yellow-500" :
+                  analysis_result?.grade === "D" ? "text-orange-600" :
+                  "text-red-500"
+                }`}>
+                  {analysis_result?.skor_kebersihan}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className="text-sm text-teal-600 block">Grade</span>
+                <span className={`font-bold text-xl ${
+                  analysis_result?.grade === "A" ? "text-green-500" :
+                  analysis_result?.grade === "B" ? "text-blue-500" :
+                  analysis_result?.grade === "C" ? "text-yellow-500" :
+                  analysis_result?.grade === "D" ? "text-orange-600" :
+                  "text-red-500"
+                }`}>
+                  {analysis_result?.grade}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* Nama Lokasi */}
+          <div className="space-y-2">
+            <Label htmlFor="nama" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Nama Lokasi <span className="text-red-500">*</span>
             </Label>
             <Input
               id="nama"
               type="text"
-              placeholder="Masukkan Nama"
+              placeholder="Contoh: Taman Kota, Jalan Raya, dll."
               required
               value={form.nama}
               onChange={(e) => setForm({ ...form, nama: e.target.value })}
-              className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-200 bg-white shadow-sm"
             />
           </div>
           
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <Label
-                htmlFor="alamat"
-                className="text-sm font-medium text-gray-700"
-              >
-                Alamat <span className="text-red-500">*</span>
+          {/* Alamat Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="alamat" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z" />
+                </svg>
+                Alamat Lengkap <span className="text-red-500">*</span>
               </Label>
               <Button
                 type="button"
                 onClick={getCurrentLocation}
                 disabled={isLoadingAddress}
-                className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 h-8 rounded-full"
+                size="sm"
+                className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white px-4 py-2 h-9 rounded-full text-xs font-medium shadow-sm transition-all duration-200"
               >
-                {isLoadingAddress ? "Loading..." : "Lokasi Saat Ini"}
+                {isLoadingAddress ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    </svg>
+                    Lokasi Saat Ini
+                  </>
+                )}
               </Button>
             </div>
-            <Input
-              id="alamat"
-              type="text"
-              placeholder="Alamat akan terisi otomatis berdasarkan koordinat"
-              value={form.alamat}
-              className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-              disabled={true} // Always disabled - only filled from coordinates
-              readOnly
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              {isLoadingAddress 
+            <div className="relative">
+              <Input
+                id="alamat"
+                type="text"
+                placeholder="Alamat akan terisi otomatis berdasarkan koordinat"
+                value={form.alamat}
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl bg-slate-50 text-slate-600 pr-12 shadow-sm"
+                disabled={true}
+                readOnly
+              />
+              {isLoadingAddress && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <Loader2 className="w-5 h-5 text-teal-500 animate-spin" />
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
+              💡 {isLoadingAddress 
                 ? "Sedang mendapatkan alamat..." 
-                : "Alamat akan berubah otomatis saat Anda memilih koordinat di peta"
+                : "Alamat akan berubah otomatis saat Anda memilih koordinat di peta di bawah"
               }
             </p>
           </div>
 
-          <CoordinatePicker
-            value={form.coord}
-            onChange={handleCoordinateChange}
-          />
+          {/* Map Section */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              Pilih Lokasi di Peta
+            </Label>
+            <div className="border-2 border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <CoordinatePicker
+                value={form.coord}
+                onChange={handleCoordinateChange}
+              />
+            </div>
+            <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
+              🗺️ Klik dan drag marker di peta untuk memilih lokasi yang tepat
+            </p>
+          </div>
           
-          <div className="flex items-center gap-2 justify-end">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3 pt-6 border-t border-slate-200">
             {!loading && (
               <Button
                 onClick={() => setOpen(false)}
                 type="button"
                 variant="outline"
+                className="flex-1 py-3 rounded-xl border-2 border-slate-200 hover:bg-slate-50 font-medium transition-all duration-200"
               >
                 Batal
               </Button>
@@ -893,13 +983,25 @@ const GradeShareForm = ({
               type="submit" 
               disabled={loading || !form.nama.trim() || !form.alamat.trim()} 
               onClick={submit}
-              className={`${
+              className={`flex-1 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 ${
                 loading || !form.nama.trim() || !form.alamat.trim()
-                  ? "opacity-50 cursor-not-allowed" 
-                  : ""
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed" 
+                  : "bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white shadow-teal-200"
               }`}
             >
-              {loading ? "Membagikan..." : "Bagikan"}
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  </svg>
+                  Bagikan ke Komunitas
+                </>
+              )}
             </Button>
           </div>
         </div>

@@ -89,7 +89,7 @@ export const CityLeaderboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-12 px-4">
+      <div className="py-12 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-emerald-500 mx-auto"></div>
@@ -102,7 +102,7 @@ export const CityLeaderboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-12 px-4">
+      <div className="py-12 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center py-12">
             <p className="text-red-500 text-lg">{error}</p>
@@ -119,7 +119,7 @@ export const CityLeaderboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-20">
+    <div className="py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div
@@ -129,7 +129,7 @@ export const CityLeaderboard = () => {
         >
           <div className="flex items-center justify-center gap-3 mb-4">
             <Trophy className="w-8 h-8 text-yellow-500" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold text-black">
               Leaderboard Kota
             </h1>
           </div>

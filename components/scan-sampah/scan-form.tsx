@@ -351,8 +351,8 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
             <div className="space-y-4">
               <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50/50">
                 <div className="space-y-4">
-                  <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
-                    <Upload className="w-8 h-8 text-emerald-600" />
+                  <div className="mx-auto w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center">
+                    <Upload className="w-8 h-8 text-teal-600" />
                   </div>
                   <div>
                     <p className="text-lg font-medium text-slate-800 mb-2">
@@ -365,7 +365,7 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Button
                       onClick={() => fileInputRef.current?.click()}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="bg-teal-600 hover:bg-teal-700 text-white"
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       Pilih dari Galeri
@@ -373,7 +373,7 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
                     <Button
                       onClick={startCamera}
                       variant="outline"
-                      className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                      className="border-teal-600 text-teal-600 hover:bg-teal-50"
                     >
                       <Camera className="w-4 h-4 mr-2" />
                       Buka Kamera
@@ -436,7 +436,7 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
                 <div className="flex gap-3 justify-center">
                   <Button
                     onClick={capturePhoto}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="bg-teal-600 hover:bg-teal-700 text-white"
                   >
                     <Camera className="w-4 h-4 mr-2" />
                     Ambil Foto
