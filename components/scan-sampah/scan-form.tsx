@@ -2,139 +2,30 @@
 
 import { Button } from "@/components/ui/button";
 import { useState, useRef } from "react";
-import { Camera, Upload, X } from "lucide-react";
+import { Camera, Upload, X, RotateCcw, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useUserStore } from "@/lib/store/user-store";
 import { createClient } from "@/lib/supabase/client";
-import { WasteEducation } from "./waste-education-ai";
-
-// AI Education data interface
-interface AIEducationData {
-  title: string;
-  description: string;
-  environmentalImpact: {
-    positive: string[];
-    negative: string[];
-  };
-  recyclingProcess: {
-    steps: string[];
-    difficulty: string;
-    timeRequired: string;
-  };
-  tips: {
-    reduce: string[];
-    reuse: string[];
-    recycle: string[];
-  };
-  funFacts: string[];
-  economicValue: {
-    price: string;
-    potential: string;
-  };
-  personalizedAdvice: string;
-  generatedAt: string;
-  wasteType: string;
-  confidence: number;
-  isfallback?: boolean;
-}
-
-// Interface untuk hasil analisis basic
-interface BasicAnalysis {
-  namaObjek: string;
-  kategori: string;
-  statusBahaya: string;
-  waktuTerurai: string;
-  produkReuse: string;
-  langkahLangkah: string[];
-  nilaiEkonomi: string;
-}
-
-// Interface untuk response API gabungan
-interface CombinedAnalysisResponse {
-  result: string;
-  isNotTrash: boolean;
-  isDemo: boolean;
-  detectedType: string | null;
-  basicAnalysis: BasicAnalysis | null;
-  aiEducation: AIEducationData | null;
-}
-
-// Interface untuk hasil analisis yang terstruktur (untuk parsing text)
-interface AnalysisResult {
-  namaObjek?: string;
-  kategori?: string;
-  statusBahaya?: string;
-  waktuTerurai?: string;
-  produkReuse?: string;
-  langkahLangkah?: string[];
-  nilaiEkonomi?: string;
-  rawText?: string;
-}
-
-// Fungsi untuk memparse hasil analisis menjadi struktur yang rapi
-const parseAnalysisResult = (result: string): AnalysisResult => {
-  if (!result || result.toLowerCase().includes("objek bukanlah sampah")) {
-    return { rawText: result };
-  }
-
-  const parsed: AnalysisResult = { rawText: result };
-
-  // Parse setiap field
-  const namaMatch = result.match(/Nama objek:\s*([^\n]+)/i);
-  if (namaMatch) parsed.namaObjek = namaMatch[1].trim();
-
-  const kategoriMatch = result.match(/Kategori:\s*([^\n]+)/i);
-  if (kategoriMatch) parsed.kategori = kategoriMatch[1].trim();
-
-  const bahayaMatch = result.match(/Status bahaya:\s*([^\n]+)/i);
-  if (bahayaMatch) parsed.statusBahaya = bahayaMatch[1].trim();
-
-  const waktuMatch = result.match(/Waktu terurai:\s*([^\n]+)/i);
-  if (waktuMatch) parsed.waktuTerurai = waktuMatch[1].trim();
-
-  const reuseMatch = result.match(/Produk reuse:\s*([^\n]+)/i);
-  if (reuseMatch) parsed.produkReuse = reuseMatch[1].trim();
-
-  const ekonomiMatch = result.match(/Nilai ekonomi:\s*([^\n]+)/i);
-  if (ekonomiMatch) parsed.nilaiEkonomi = ekonomiMatch[1].trim();
-
-  // Parse langkah-langkah
-  const langkahSection = result.match(
-    /Langkah-langkah:\s*([\s\S]*?)(?=Nilai ekonomi:|$)/i
-  );
-  if (langkahSection) {
-    const steps = langkahSection[1]
-      .split(/\d+\./)
-      .filter((step) => step.trim())
-      .map((step) => step.trim());
-    parsed.langkahLangkah = steps;
-  }
-
-  return parsed;
-};
+import { KreasiCards } from "./kreasi-cards";
+import { BasicAnalysis, CreativeArticle, AnalysisResponse } from "@/types/scan";
 
 export const ScanForm = () => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [basicAnalysis, setBasicAnalysis] = useState<BasicAnalysis | null>(
-    null
-  );
-  const [detectedWasteType, setDetectedWasteType] = useState<string | null>(
-    null
-  );
+  const [basicAnalysis, setBasicAnalysis] = useState<BasicAnalysis | null>(null);
+  const [kreatiArticles, setKreatiArticles] = useState<CreativeArticle[] | null>(null);
   const [isNotTrash, setIsNotTrash] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">(
-    "environment"
-  ); // Default ke kamera belakang
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const user = useUserStore((state) => state.user);
-  const [aiEducation, setAiEducation] = useState<AIEducationData | null>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -142,139 +33,105 @@ export const ScanForm = () => {
       setSelectedImage(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
-      setAnalysisResult(null);
-      setBasicAnalysis(null);
-      setIsNotTrash(false);
-      setAiEducation(null);
+      resetAnalysisStates();
+    }
+  };
+
+  const resetAnalysisStates = () => {
+    setAnalysisResult(null);
+    setBasicAnalysis(null);
+    setKreatiArticles(null);
+    setIsNotTrash(false);
+    setIsGeneratingImages(false);
+  };
+
+  const generateKreasiImages = async (articles: CreativeArticle[]): Promise<CreativeArticle[]> => {
+    try {
+      setIsGeneratingImages(true);
+      
+      // Extract all titles from articles
+      const titles = articles.map(article => article.title);
+      
+      // Send titles to Nano Banana for image generation
+      const res = await fetch("/api/generate-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titles }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const imageData = await res.json();
+      
+      // Update articles with generated images
+      if (imageData.images && Array.isArray(imageData.images)) {
+        return articles.map((article, index) => {
+          const imageResult = imageData.images[index];
+          return {
+            ...article,
+            imageUrl: imageResult?.success ? imageResult.imageUrl : null
+          };
+        });
+      }
+      
+      return articles;
+    } catch (error) {
+      console.error("Error generating images with Gemini:", error);
+      return articles; // Return original articles if image generation fails
+    } finally {
+      setIsGeneratingImages(false);
     }
   };
 
   const startCamera = async () => {
     setCameraError(null);
-    setIsCapturing(true); // Set capturing state immediately to show UI feedback
+    setIsCapturing(true);
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API not supported in this browser");
       }
 
-      // Try environment (back) camera first for better user experience
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment", // Start with back camera by default
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          setFacingMode("environment"); // Update facing mode state
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch((err) => {
-              console.error("Error playing video:", err);
-              setCameraError("Gagal memulai video kamera. Silakan coba lagi.");
-              setIsCapturing(false); // Reset capturing state on error
-            });
-          };
-        }
-      } catch (backCameraError) {
-        console.error("Back camera access failed:", backCameraError);
-        console.log("Back camera access failed, trying front camera");
-
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "user", // Try front camera
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setFacingMode("environment");
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch((err) => {
+            console.error("Error playing video:", err);
+            setCameraError("Gagal memutar video kamera");
           });
-
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            setFacingMode("user"); // Update facing mode state
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play().catch((err) => {
-                console.error("Error playing video:", err);
-                setCameraError(
-                  "Gagal memulai video kamera. Silakan coba lagi."
-                );
-                setIsCapturing(false); // Reset capturing state on error
-              });
-            };
-          }
-        } catch (frontCameraError) {
-          console.error("Front camera access failed:", frontCameraError);
-          console.log(
-            "Front camera access failed, trying generic camera access"
-          );
-
-          // Last resort - try generic video access
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-            });
-
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              videoRef.current.onloadedmetadata = () => {
-                videoRef.current?.play().catch((err) => {
-                  console.error("Error playing video:", err);
-                  setCameraError(
-                    "Gagal memulai video kamera. Silakan coba lagi."
-                  );
-                  setIsCapturing(false); // Reset capturing state on error
-                });
-              };
-            }
-          } catch (genericError) {
-            throw genericError; // Re-throw to be caught by outer catch block
-          }
-        }
+        };
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      let errorMessage = "Tidak dapat mengakses kamera. ";
-
-      if (error instanceof Error) {
-        if (error.name === "NotAllowedError") {
-          errorMessage +=
-            "Izin kamera ditolak. Silakan izinkan akses kamera di browser.";
-        } else if (error.name === "NotFoundError") {
-          errorMessage += "Kamera tidak ditemukan pada perangkat ini.";
-        } else if (error.name === "NotSupportedError") {
-          errorMessage += "Browser tidak mendukung akses kamera.";
-        } else if (error.name === "OverconstrainedError") {
-          errorMessage += "Resolusi kamera yang diminta tidak didukung.";
-        } else {
-          errorMessage += `Error: ${error.message}`;
-        }
-      }
-
-      setCameraError(errorMessage);
+      setCameraError("Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser.");
       setIsCapturing(false);
     }
   };
 
   const toggleCamera = async () => {
-    // Show loading state or indicator
     setCameraError(null);
 
-    // Stop current camera stream
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
 
-    // Toggle camera direction
     const newFacingMode = facingMode === "user" ? "environment" : "user";
     setFacingMode(newFacingMode);
 
     try {
-      // Request camera with new facing mode
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: newFacingMode,
@@ -283,54 +140,18 @@ export const ScanForm = () => {
         },
       });
 
-      // Set video stream and play
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((err) => {
             console.error("Error playing video:", err);
-            setCameraError("Gagal memutar video kamera. Silakan coba lagi.");
-            setIsCapturing(false); // Reset capturing state on error
+            setCameraError("Gagal memutar video kamera");
           });
         };
       }
     } catch (error) {
       console.error("Error toggling camera:", error);
       setCameraError("Gagal mengganti kamera. Silakan coba lagi.");
-
-      // Try the opposite camera as fallback
-      try {
-        const fallbackMode = newFacingMode === "user" ? "environment" : "user";
-        setFacingMode(fallbackMode);
-
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: fallbackMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = fallbackStream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch((err) => {
-              console.error("Error playing fallback video:", err);
-              setCameraError("Gagal memutar video kamera. Silakan coba lagi.");
-              setIsCapturing(false); // Reset capturing state on error
-            });
-          };
-          setCameraError(
-            "Kamera yang dipilih tidak tersedia, menggunakan kamera alternatif."
-          );
-        }
-      } catch (fallbackError) {
-        console.error("Error with fallback camera:", fallbackError);
-        setCameraError(
-          "Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser Anda."
-        );
-        setIsCapturing(false); // Reset capturing state on complete failure
-      }
     }
   };
 
@@ -352,12 +173,10 @@ export const ScanForm = () => {
                 type: "image/jpeg",
               });
               setSelectedImage(file);
-              setPreviewUrl(URL.createObjectURL(file));
-              setAnalysisResult(null);
-              setBasicAnalysis(null);
-              setAiEducation(null);
-              setIsNotTrash(false);
+              const url = URL.createObjectURL(file);
+              setPreviewUrl(url);
               stopCamera();
+              resetAnalysisStates();
             }
           },
           "image/jpeg",
@@ -383,174 +202,10 @@ export const ScanForm = () => {
       URL.revokeObjectURL(previewUrl);
     }
     setPreviewUrl(null);
-    setAnalysisResult(null);
-    setBasicAnalysis(null);
-    setDetectedWasteType(null);
-    setAiEducation(null);
-    setIsNotTrash(false);
+    resetAnalysisStates();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  };
-
-  // Enhanced helper function to detect waste type from AI analysis result
-  const detectWasteType = (analysisText: string): string => {
-    const text = analysisText.toLowerCase();
-
-    // Advanced keyword matching with scoring system
-    const wasteKeywords = {
-      botol_plastik: [
-        "botol plastik",
-        "pet bottle",
-        "plastic bottle",
-        "minuman plastik",
-        "aqua",
-        "le minerale",
-        "coca cola",
-        "pepsi",
-        "sprite",
-        "fanta",
-        "botol air",
-        "water bottle",
-        "drinking bottle",
-        "beverage bottle",
-      ],
-      botol_kaca: [
-        "botol kaca",
-        "glass bottle",
-        "wine bottle",
-        "beer bottle",
-        "kaca",
-        "glass",
-        "botol bir",
-        "botol wine",
-        "parfum bottle",
-        "medicine bottle",
-        "syrup bottle",
-        "olive oil bottle",
-      ],
-      kaleng_aluminium: [
-        "kaleng",
-        "aluminium",
-        "aluminum",
-        "can",
-        "soda can",
-        "beverage can",
-        "drink can",
-        "metal can",
-        "soft drink can",
-        "coca cola can",
-        "pepsi can",
-        "beer can",
-        "energy drink can",
-      ],
-      kantong_plastik: [
-        "kantong plastik",
-        "plastic bag",
-        "shopping bag",
-        "kresek",
-        "tas plastik",
-        "kantong belanja",
-        "grocery bag",
-        "carrier bag",
-        "polybag",
-        "plastic sack",
-        "shopping plastic",
-      ],
-      styrofoam: [
-        "styrofoam",
-        "polystyrene",
-        "foam container",
-        "takeaway box",
-        "wadah styrofoam",
-        "kotak makan",
-        "foam box",
-        "disposable container",
-        "white foam",
-        "packaging foam",
-        "insulation foam",
-      ],
-      kertas: [
-        "kertas",
-        "kardus",
-        "koran",
-        "majalah",
-        "buku",
-        "karton",
-        "paper",
-        "cardboard",
-        "newspaper",
-        "magazine",
-        "book",
-        "tissue",
-        "tisu",
-        "nota",
-        "receipt",
-        "packaging paper",
-        "box",
-        "carton",
-        "envelope",
-        "wrapper paper",
-      ],
-      sampah_organik: [
-        "organik",
-        "makanan",
-        "buah",
-        "sayuran",
-        "sisa makanan",
-        "kulit buah",
-        "daun",
-        "ranting",
-        "organic",
-        "food waste",
-        "fruit peel",
-        "vegetable",
-        "apple",
-        "banana",
-        "orange",
-        "tomato",
-        "carrot",
-        "lettuce",
-        "bread",
-        "rice",
-        "nasi",
-      ],
-    };
-
-    // Calculate confidence scores for each waste type
-    const scores: Record<string, number> = {};
-
-    Object.entries(wasteKeywords).forEach(([wasteType, keywords]) => {
-      scores[wasteType] = 0;
-      keywords.forEach((keyword) => {
-        if (text.includes(keyword)) {
-          // Give higher score for more specific matches
-          const specificity = keyword.length > 8 ? 2 : 1;
-          scores[wasteType] += specificity;
-        }
-      });
-    });
-
-    // Find the waste type with highest confidence score
-    let bestMatch = "botol_plastik"; // default
-    let maxScore = 0;
-
-    Object.entries(scores).forEach(([wasteType, score]) => {
-      if (score > maxScore) {
-        maxScore = score;
-        bestMatch = wasteType;
-      }
-    });
-
-    // Log detection results for debugging (remove in production)
-    console.log("AI Analysis Detection:", {
-      analysisText: text,
-      scores,
-      detectedType: bestMatch,
-      confidence: maxScore,
-    });
-
-    return bestMatch;
   };
 
   const handleAnalysis = async () => {
@@ -560,8 +215,7 @@ export const ScanForm = () => {
     }
 
     setIsAnalyzing(true);
-    setAnalysisResult(null);
-    setDetectedWasteType(null);
+    resetAnalysisStates();
 
     try {
       const toBase64 = (file: File): Promise<string> =>
@@ -569,8 +223,8 @@ export const ScanForm = () => {
           const reader = new FileReader();
           reader.readAsDataURL(file);
           reader.onload = () => {
-            const base64 = (reader.result as string).split(",")[1];
-            resolve(base64);
+            const result = reader.result as string;
+            resolve(result.split(",")[1]);
           };
           reader.onerror = (error) => reject(error);
         });
@@ -587,90 +241,48 @@ export const ScanForm = () => {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const data = (await res.json()) as CombinedAnalysisResponse;
+      const data = (await res.json()) as AnalysisResponse;
 
       console.log("🔥 Frontend received data:", {
         hasResult: !!data.result,
         hasBasicAnalysis: !!data.basicAnalysis,
-        hasAiEducation: !!data.aiEducation,
+        hasKreatiArticles: !!data.kreatiArticles,
         isNotTrash: data.isNotTrash,
         responseKeys: Object.keys(data),
       });
 
-      // Handle structured response (basicAnalysis + aiEducation) or fallback text response
-      if (data.basicAnalysis && data.aiEducation) {
-        // Structured response - use basicAnalysis for display
+      if (data.basicAnalysis && data.kreatiArticles) {
         const analysisText = `Nama objek: ${data.basicAnalysis.namaObjek}
 Kategori: ${data.basicAnalysis.kategori}
-Status bahaya: ${data.basicAnalysis.statusBahaya}
-Waktu terurai: ${data.basicAnalysis.waktuTerurai}`;
+Status bahaya: ${data.basicAnalysis.statusBahaya}`;
 
         setAnalysisResult(analysisText);
         setIsNotTrash(data.isNotTrash || false);
-        setBasicAnalysis(data.basicAnalysis);
-        setAiEducation(data.aiEducation);
+        setBasicAnalysis(data.basicAnalysis || null);
+        
+        // Generate images with Gemini before setting the articles
+        console.log("🖼️ Generating images with Gemini...");
+        const processedArticles = await generateKreasiImages(data.kreatiArticles);
+        setKreatiArticles(processedArticles);
 
-        console.log("📚 AI Education set successfully!");
+        console.log("📚 Kreasi Articles processed and set successfully!");
         console.log("✅ All states updated successfully!");
-
-        // Detect waste type from analysis result
-        if (!data.isNotTrash) {
-          // Use category from basicAnalysis
-          const wasteType = data.basicAnalysis.kategori || "Unknown";
-          setDetectedWasteType(wasteType);
-
-          // Log analysis results
-          console.log("🎯 Structured AI Analysis Result:", {
-            objectName: data.basicAnalysis.namaObjek,
-            category: data.basicAnalysis.kategori,
-            hasEducation: !!data.aiEducation,
-            timestamp: new Date().toISOString(),
-          });
-
-          console.log(
-            "🤖 Structured Gemini AI analysis completed successfully!"
-          );
-          console.log("📚 AI Education data included!");
-        }
       } else if (data.result) {
-        // Fallback text response
         setAnalysisResult(data.result);
         setIsNotTrash(data.isNotTrash || false);
-        setBasicAnalysis(data.basicAnalysis);
-
-        // Set AI education if available from combined response
-        if (data.aiEducation) {
-          setAiEducation(data.aiEducation);
-          console.log("📚 AI Education set successfully!");
+        setBasicAnalysis(data.basicAnalysis || null);
+        
+        // If we have kreatiArticles, generate images for them too
+        if (data.kreatiArticles) {
+          console.log("🖼️ Generating images with Gemini...");
+          const processedArticles = await generateKreasiImages(data.kreatiArticles);
+          setKreatiArticles(processedArticles);
+        } else {
+          setKreatiArticles(null);
         }
 
         console.log("✅ All states updated successfully!");
-
-        // Detect waste type from analysis result
-        if (!data.isNotTrash) {
-          // Use provided type from API if available, otherwise detect from text
-          const wasteType = data.detectedType || detectWasteType(data.result);
-          setDetectedWasteType(wasteType);
-
-          // Log analysis results
-          console.log("🎯 Gemini AI Detection Result:", {
-            originalAnalysis: data.result,
-            detectedType: wasteType,
-            isRealAI: !data.isDemo,
-            hasEducation: !!data.aiEducation,
-            timestamp: new Date().toISOString(),
-          });
-
-          // Show success message for real AI
-          if (!data.isDemo) {
-            console.log("🤖 Real Gemini AI analysis completed successfully!");
-            if (data.aiEducation) {
-              console.log("📚 AI Education included in response!");
-            }
-          }
-        }
       } else {
-        // No valid analysis data received
         console.error("❌ No valid analysis data received:", data);
         setAnalysisResult("Gagal menganalisis gambar.");
         setIsNotTrash(false);
@@ -678,18 +290,14 @@ Waktu terurai: ${data.basicAnalysis.waktuTerurai}`;
     } catch (err) {
       console.error("Analysis error:", err);
 
-      // Provide more specific error messages
       let errorMessage = "Terjadi kesalahan saat analisis. ";
-
       if (err instanceof Error) {
         if (err.message.includes("500")) {
-          errorMessage +=
-            "Server sedang mengalami gangguan. Silakan coba lagi dalam beberapa saat.";
+          errorMessage += "Server mengalami masalah. ";
         } else if (err.message.includes("network")) {
-          errorMessage += "Periksa koneksi internet Anda dan coba lagi.";
+          errorMessage += "Masalah koneksi internet. ";
         } else {
-          errorMessage +=
-            "Silakan coba lagi atau gunakan foto yang lebih jelas.";
+          errorMessage += `Error: ${err.message}`;
         }
       } else {
         errorMessage += "Silakan coba lagi.";
@@ -699,27 +307,25 @@ Waktu terurai: ${data.basicAnalysis.waktuTerurai}`;
       setIsNotTrash(false);
     } finally {
       setIsAnalyzing(false);
+      
+      // Handle mission completion
       const fetchMissions = async () => {
         const supabase = createClient();
         if (!user?.id) return;
+        
         const { data, error } = await supabase
           .from("daily_missions_with_status")
           .select("*")
           .eq(`user_id`, user.id)
           .eq("mission_id", "b2d3dba2-ef1b-4396-b098-47524b407709")
           .order("point_reward", { ascending: true });
+          
         if (error) {
-          console.error("Error fetching missions:", error.message);
+          console.error("Error fetching missions:", error);
         }
+        
         if (data?.length == 0) {
-          await supabase.from("user_mission_logs").insert([
-            {
-              user_id: user.id,
-              mission_id: "b2d3dba2-ef1b-4396-b098-47524b407709",
-              completed_at: new Date().toISOString(),
-              point_earned: 10,
-            },
-          ]);
+          // Handle mission completion logic here
         }
       };
       fetchMissions();
@@ -729,419 +335,248 @@ Waktu terurai: ${data.basicAnalysis.waktuTerurai}`;
   return (
     <div className="p-4">
       <div className="max-w-4xl mx-auto py-10">
-        {/* Main Content Card */}
+        {/* Header */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 px-6 py-6">
-          {/* Header */}
           <div className="text-center mb-6">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                Scan Sampah
-              </h1>
-            </div>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">
+              Scan Sampah AI
+            </h1>
             <p className="text-slate-600">
-              Ambil foto sampah untuk mendapat informasi lengkap tentang jenis,
-              dampak lingkungan, cara daur ulang, dan nilai ekonomi
+              Scan sampah untuk mendapatkan analisis dan ide kreasi DIY
             </p>
           </div>
 
-          {/* Foto Label */}
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-slate-700 mb-3">
-              Upload Foto Sampah
-            </h2>
-
-            {/* Upload Options */}
-            <div className="flex gap-2 mb-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full  border-blue-200 text-blue-600 hover:bg-blue-50"
-                disabled={isCapturing}
-              >
-                <Upload className="w-3 h-3" />
-                Pilih Foto
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={startCamera}
-                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                disabled={isCapturing}
-              >
-                <Camera className="w-3 h-3" />
-                Buka Kamera
-              </Button>
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-          </div>
-
-          {/* Camera Error */}
-          {cameraError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {cameraError}
+          {/* Image Upload Section */}
+          {!isCapturing && !previewUrl && (
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50/50">
+                <div className="space-y-4">
+                  <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <Upload className="w-8 h-8 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-medium text-slate-800 mb-2">
+                      Upload Gambar Sampah
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      Pilih foto sampah untuk dianalisis
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Pilih dari Galeri
+                    </Button>
+                    <Button
+                      onClick={startCamera}
+                      variant="outline"
+                      className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Buka Kamera
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
             </div>
           )}
 
-          {/* Camera View */}
+          {/* Camera Section */}
           {isCapturing && (
-            <div className="mb-4">
+            <div className="space-y-4">
               <div className="relative">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full aspect-video rounded-2xl border border-gray-200"
-                />
-                <div className="mt-3 flex gap-2 justify-center">
+                {cameraError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+                    <p className="text-red-800 mb-4">{cameraError}</p>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        onClick={startCamera}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        Coba Lagi
+                      </Button>
+                      <Button onClick={stopCamera} variant="outline">
+                        Batal
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative bg-black rounded-xl overflow-hidden">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-auto max-h-96 object-cover"
+                    />
+                    <div className="absolute top-4 right-4 flex gap-2">
+                      <Button
+                        onClick={toggleCamera}
+                        size="sm"
+                        variant="secondary"
+                        className="bg-white/80 hover:bg-white"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {!cameraError && (
+                <div className="flex gap-3 justify-center">
                   <Button
-                    type="button"
-                    onClick={toggleCamera}
-                    className="bg-gray-500 hover:bg-gray-600 text-white text-xs px-4 py-2 h-8"
-                  >
-                    Ganti Kamera
-                  </Button>
-                  <Button
-                    type="button"
                     onClick={capturePhoto}
-                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-4 py-2 h-8"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
                   >
+                    <Camera className="w-4 h-4 mr-2" />
                     Ambil Foto
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={stopCamera}
-                    className="text-xs px-4 py-2 h-8"
-                  >
+                  <Button onClick={stopCamera} variant="outline">
                     Batal
                   </Button>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* Image Preview */}
-          {previewUrl && !isCapturing && (
-            <div className="mb-4">
+          {/* Image Preview Section */}
+          {previewUrl && (
+            <div className="space-y-4">
               <div className="relative">
                 <Image
                   src={previewUrl}
+                  alt="Preview"
                   width={400}
                   height={300}
-                  alt="Preview"
-                  className="w-full h-48 rounded-lg border border-gray-200 object-cover"
+                  className="w-full h-auto max-h-96 object-contain rounded-xl border border-slate-200"
                 />
                 <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
                   onClick={removeImage}
-                  className="absolute top-2 right-2 w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500 rounded-full"
+                  size="sm"
+                  variant="destructive"
+                  className="absolute top-2 right-2"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="text-center">
+                <Button
+                  onClick={handleAnalysis}
+                  disabled={isAnalyzing || isGeneratingImages}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Menganalisis...
+                    </>
+                  ) : isGeneratingImages ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Membuat gambar kreasi...
+                    </>
+                  ) : (
+                    "Analisis Sampah"
+                  )}
                 </Button>
               </div>
             </div>
           )}
+        </div>
 
-          {/* Analysis Result */}
-          {analysisResult && (
-            <div className="mb-4">
+        {/* Analysis Results */}
+        {analysisResult && (
+          <div className="mt-6">
+            <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                🔬 Hasil Analisis
+              </h2>
+              
               {isNotTrash ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                    <h3 className="text-sm font-medium text-yellow-800">
-                      Hasil Analisis AI
-                    </h3>
-                  </div>
-                  <div className="text-sm text-yellow-700 mb-3">
-                    <div className="whitespace-pre-line">{analysisResult}</div>
-                  </div>
-                  <div className="text-xs text-yellow-600 bg-yellow-100 p-2 rounded">
-                    💡 <strong>Tips:</strong> Coba foto sampah yang lebih jelas
-                    atau dari sudut yang berbeda untuk hasil analisis yang lebih
-                    akurat.
-                  </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
+                  <div className="text-6xl mb-4">🤔</div>
+                  <h3 className="text-xl font-bold text-yellow-800 mb-2">
+                    Objek Bukan Sampah
+                  </h3>
+                  <p className="text-yellow-700">
+                    Objek yang difoto sepertinya bukan sampah atau limbah. 
+                    Silakan foto objek sampah yang ingin dianalisis.
+                  </p>
                 </div>
               ) : (
-                <>
-                  {/* AI Analysis Summary */}
-                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                      <h3 className="text-sm font-medium text-emerald-800">
-                        Analisis Berhasil
-                      </h3>
+                <div className="space-y-6">
+                  {basicAnalysis && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
+                        <h4 className="font-semibold text-blue-800 mb-2">Nama Objek</h4>
+                        <p className="text-blue-700">{basicAnalysis.namaObjek}</p>
+                      </div>
+                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                        <h4 className="font-semibold text-purple-800 mb-2">Kategori</h4>
+                        <p className="text-purple-700">{basicAnalysis.kategori}</p>
+                      </div>
+                      <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200">
+                        <h4 className="font-semibold text-orange-800 mb-2">Status Bahaya</h4>
+                        <p className="text-orange-700">{basicAnalysis.statusBahaya}</p>
+                      </div>
                     </div>
-                    <div className="text-sm text-emerald-700 mb-2">
-                      {(() => {
-                        // Use structured basicAnalysis if available, otherwise parse text
-                        if (basicAnalysis) {
-                          return (
-                            <div className="space-y-3">
-                              {/* Nama & Kategori */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
-                                  <div className="text-xs font-semibold text-emerald-600 mb-1">
-                                    NAMA OBJEK
-                                  </div>
-                                  <div className="font-medium text-emerald-800">
-                                    {basicAnalysis.namaObjek}
-                                  </div>
-                                </div>
-                                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                                  <div className="text-xs font-semibold text-blue-600 mb-1">
-                                    KATEGORI
-                                  </div>
-                                  <div className="font-medium text-blue-800">
-                                    {basicAnalysis.kategori}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Status & Waktu */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
-                                  <div className="text-xs font-semibold text-orange-600 mb-1">
-                                    STATUS BAHAYA
-                                  </div>
-                                  <div className="font-medium text-orange-800">
-                                    {basicAnalysis.statusBahaya}
-                                  </div>
-                                </div>
-                                <div className="bg-red-50 rounded-lg p-3 border border-red-200">
-                                  <div className="text-xs font-semibold text-red-600 mb-1">
-                                    WAKTU TERURAI
-                                  </div>
-                                  <div className="font-medium text-red-800">
-                                    {basicAnalysis.waktuTerurai}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Reuse Ideas */}
-                              {basicAnalysis.produkReuse && (
-                                <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                                  <div className="text-xs font-semibold text-purple-600 mb-1">
-                                    💡 IDE DAUR ULANG
-                                  </div>
-                                  <div className="font-medium text-purple-800">
-                                    {basicAnalysis.produkReuse}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Langkah-langkah */}
-                              {basicAnalysis.langkahLangkah &&
-                                basicAnalysis.langkahLangkah.length > 0 && (
-                                  <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
-                                    <div className="text-xs font-semibold text-indigo-600 mb-2">
-                                      📋 LANGKAH-LANGKAH
-                                    </div>
-                                    <ol className="space-y-1">
-                                      {basicAnalysis.langkahLangkah.map(
-                                        (step: string, index: number) => (
-                                          <li
-                                            key={index}
-                                            className="flex items-start gap-2"
-                                          >
-                                            <span className="bg-indigo-200 text-indigo-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
-                                              {index + 1}
-                                            </span>
-                                            <span className="text-indigo-800 text-xs">
-                                              {step}
-                                            </span>
-                                          </li>
-                                        )
-                                      )}
-                                    </ol>
-                                  </div>
-                                )}
-
-                              {/* Nilai Ekonomi */}
-                              {basicAnalysis.nilaiEkonomi && (
-                                <div className="bg-green-50 rounded-lg p-3 border border-green-200">
-                                  <div className="text-xs font-semibold text-green-600 mb-1">
-                                    💰 NILAI EKONOMI
-                                  </div>
-                                  <div className="font-medium text-green-800">
-                                    {basicAnalysis.nilaiEkonomi}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-
-                        // Fallback to parsing text if basicAnalysis is not available
-                        const parsed = parseAnalysisResult(analysisResult);
-                        if (!parsed.namaObjek) {
-                          return (
-                            <div className="whitespace-pre-line">
-                              {analysisResult}
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="space-y-3">
-                            {/* Nama & Kategori */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
-                                <div className="text-xs font-semibold text-emerald-600 mb-1">
-                                  NAMA OBJEK
-                                </div>
-                                <div className="font-medium text-emerald-800">
-                                  {parsed.namaObjek}
-                                </div>
-                              </div>
-                              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                                <div className="text-xs font-semibold text-blue-600 mb-1">
-                                  KATEGORI
-                                </div>
-                                <div className="font-medium text-blue-800">
-                                  {parsed.kategori}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Status & Waktu */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
-                                <div className="text-xs font-semibold text-orange-600 mb-1">
-                                  STATUS BAHAYA
-                                </div>
-                                <div className="font-medium text-orange-800">
-                                  {parsed.statusBahaya}
-                                </div>
-                              </div>
-                              <div className="bg-red-50 rounded-lg p-3 border border-red-200">
-                                <div className="text-xs font-semibold text-red-600 mb-1">
-                                  WAKTU TERURAI
-                                </div>
-                                <div className="font-medium text-red-800">
-                                  {parsed.waktuTerurai}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Reuse Ideas */}
-                            {parsed.produkReuse && (
-                              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                                <div className="text-xs font-semibold text-purple-600 mb-1">
-                                  💡 IDE DAUR ULANG
-                                </div>
-                                <div className="font-medium text-purple-800">
-                                  {parsed.produkReuse}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Langkah-langkah */}
-                            {parsed.langkahLangkah &&
-                              parsed.langkahLangkah.length > 0 && (
-                                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
-                                  <div className="text-xs font-semibold text-indigo-600 mb-2">
-                                    📋 LANGKAH-LANGKAH
-                                  </div>
-                                  <ol className="space-y-1">
-                                    {parsed.langkahLangkah.map(
-                                      (step: string, index: number) => (
-                                        <li
-                                          key={index}
-                                          className="flex items-start gap-2"
-                                        >
-                                          <span className="bg-indigo-200 text-indigo-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
-                                            {index + 1}
-                                          </span>
-                                          <span className="text-indigo-800 text-xs">
-                                            {step}
-                                          </span>
-                                        </li>
-                                      )
-                                    )}
-                                  </ol>
-                                </div>
-                              )}
-
-                            {/* Nilai Ekonomi */}
-                            {parsed.nilaiEkonomi && (
-                              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
-                                <div className="text-xs font-semibold text-green-600 mb-1">
-                                  💰 NILAI EKONOMI
-                                </div>
-                                <div className="font-medium text-green-800">
-                                  {parsed.nilaiEkonomi}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* AI Education Content */}
-                  {detectedWasteType && aiEducation && (
-                    <WasteEducation aiEducation={aiEducation} />
                   )}
-                </>
+                  
+                  {!basicAnalysis && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                      <pre className="text-slate-800 whitespace-pre-wrap text-sm">
+                        {analysisResult}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Analysis Button */}
-        <div className="mt-4">
-          {analysisResult ? (
-            <>
-              {isNotTrash ? (
-                // Objek bukan sampah - show "Coba Gambar Lain" button
-                <Button
-                  onClick={() => {
-                    removeImage();
-                  }}
-                  variant="outline"
-                  className="w-full py-3 text-sm font-medium rounded-full"
-                >
-                  Coba Gambar Lain
-                </Button>
-              ) : (
-                // Valid trash analysis - show normal analysis button
-                <Button
-                  onClick={() => {
-                    removeImage();
-                  }}
-                  variant="outline"
-                  className="w-full py-3 text-sm font-medium rounded-full"
-                >
-                  Analisis Gambar Lain
-                </Button>
-              )}
-            </>
-          ) : (
-            <Button
-              onClick={handleAnalysis}
-              disabled={!selectedImage || isAnalyzing}
-              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-            >
-              {isAnalyzing ? "Menganalisis..." : "Analisis"}
-            </Button>
-          )}
-        </div>
+        {/* Kreasi Articles */}
+        {!isNotTrash && !isGeneratingImages && kreatiArticles && kreatiArticles.length > 0 && (
+          <KreasiCards
+            articles={kreatiArticles}
+            wasteObject={basicAnalysis?.namaObjek}
+          />
+        )}
 
-        {/* Hidden canvas for photo capture */}
+        {/* Generating Images State */}
+        {isGeneratingImages && (
+          <div className="mt-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="bg-emerald-600 text-white p-6">
+                <div className="text-center">
+                  <h3 className="text-xl font-bold">Kreasi DIY</h3>
+                  <p className="text-emerald-100 text-sm mt-1">Sedang membuat gambar dengan Gemini AI</p>
+                </div>
+              </div>
+              <div className="p-8 text-center">
+                <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-emerald-600" />
+                <h3 className="text-lg font-medium text-gray-800 mb-2">
+                  Membuat gambar kreasi...
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Gemini sedang membuat gambar menarik untuk setiap ide kreasi Anda
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hidden Canvas */}
         <canvas ref={canvasRef} className="hidden" />
       </div>
     </div>

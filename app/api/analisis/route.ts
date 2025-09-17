@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
             },
           },
           {
-            text: `Analisis gambar ini untuk mengidentifikasi jenis sampah dan berikan edukasi komprehensif.
+            text: `Analisis gambar ini untuk mengidentifikasi jenis sampah.
 
 PENTING: Jika gambar yang dikirim TIDAK BERKAITAN dengan objek sampah/limbah (seperti pemandangan, orang, hewan, kendaraan, dll), maka jawab HANYA:
 "Objek bukanlah sampah"
@@ -41,45 +41,92 @@ Jika gambar berkaitan dengan sampah/limbah, berikan response dalam format JSON b
   "basicAnalysis": {
     "namaObjek": "[nama sampah yang spesifik dan jelas]",
     "kategori": "[organik/anorganik/B3/elektronik]",
-    "statusBahaya": "[rendah/sedang/tinggi] - [penjelasan maksimal 10 kata]",
-    "waktuTerurai": "[estimasi waktu terurai di alam]",
-    "produkReuse": "[1 ide kreatif daur ulang yang praktis]",
-    "langkahLangkah": [
-      "[langkah pertama yang spesifik]",
-      "[langkah kedua yang jelas]", 
-      "[langkah ketiga yang detail]",
-      "[langkah keempat yang mudah]",
-      "[langkah kelima yang praktis]"
-    ],
-    "nilaiEkonomi": "[harga per kg dalam Rupiah, atau tidak ada nilai jual]"
+    "statusBahaya": "[rendah/sedang/tinggi] - [penjelasan maksimal 10 kata]"
   },
-  "aiEducation": {
-    "title": "[judul edukasi yang menarik tentang sampah ini]",
-    "description": "[deskripsi singkat 2-3 kalimat]",
-    "environmentalImpact": {
-      "positive": ["[manfaat positif jika dikelola dengan baik]", "[manfaat lainnya]"],
-      "negative": ["[dampak negatif jika tidak dikelola]", "[dampak lainnya]"]
-    },
-    "tips": {
-      "reduce": ["[tip mengurangi sampah jenis ini]", "[tip lainnya]"],
-      "reuse": ["[cara menggunakan kembali]", "[cara lainnya]"], 
-      "recycle": ["[cara mendaur ulang yang benar]", "[cara lainnya]"]
-    },
-    "funFacts": ["[fakta menarik 1]", "[fakta menarik 2]", "[fakta menarik 3]"],
-    "recyclingProcess": {
-      "steps": ["[tahap 1 daur ulang]", "[tahap 2]", "[tahap 3]"],
+  "kreatiArticles": [
+    {
+      "id": 1,
+      "title": "[Judul artikel kreasi DIY yang menarik]",
+      "description": "[Deskripsi singkat 1-2 kalimat tentang kreasi ini]",
       "difficulty": "[mudah/sedang/sulit]",
-      "timeRequired": "[estimasi waktu yang dibutuhkan]"
+      "timeRequired": "[estimasi waktu pengerjaan]",
+      "materials": ["[bahan 1]", "[bahan 2]", "[bahan 3]"],
+      "tools": ["[alat 1]", "[alat 2]"],
+      "steps": [
+        "[langkah detail 1]",
+        "[langkah detail 2]",
+        "[langkah detail 3]",
+        "[langkah detail 4]",
+        "[langkah detail 5]"
+      ],
+      "tips": ["[tip berguna 1]", "[tip berguna 2]"],
+      "finalResult": "[deskripsi hasil akhir yang akan didapat]",
+      "benefits": ["[manfaat 1]", "[manfaat 2]"]
     },
-    "economicValue": {
-      "price": "[harga pasar per kg]",
-      "potential": "[potensi ekonomi dari daur ulang]"
+    {
+      "id": 2,
+      "title": "[Judul artikel kreasi DIY kedua]",
+      "description": "[Deskripsi singkat kreasi kedua]",
+      "difficulty": "[mudah/sedang/sulit]",
+      "timeRequired": "[estimasi waktu]",
+      "materials": ["[bahan 1]", "[bahan 2]", "[bahan 3]"],
+      "tools": ["[alat 1]", "[alat 2]"],
+      "steps": [
+        "[langkah 1]", "[langkah 2]", "[langkah 3]", "[langkah 4]", "[langkah 5]"
+      ],
+      "tips": ["[tip 1]", "[tip 2]"],
+      "finalResult": "[hasil akhir]",
+      "benefits": ["[manfaat 1]", "[manfaat 2]"]
     },
-    "personalizedAdvice": "[saran personal untuk pengelolaan sampah ini sebagai pemula]"
-  }
+    {
+      "id": 3,
+      "title": "[Judul artikel kreasi DIY ketiga]",
+      "description": "[Deskripsi singkat kreasi ketiga]",
+      "difficulty": "[mudah/sedang/sulit]",
+      "timeRequired": "[estimasi waktu]",
+      "materials": ["[bahan 1]", "[bahan 2]", "[bahan 3]"],
+      "tools": ["[alat 1]", "[alat 2]"],
+      "steps": [
+        "[langkah 1]", "[langkah 2]", "[langkah 3]", "[langkah 4]", "[langkah 5]"
+      ],
+      "tips": ["[tip 1]", "[tip 2]"],
+      "finalResult": "[hasil akhir]",
+      "benefits": ["[manfaat 1]", "[manfaat 2]"]
+    },
+    {
+      "id": 4,
+      "title": "[Judul artikel kreasi DIY keempat]",
+      "description": "[Deskripsi singkat kreasi keempat]",
+      "difficulty": "[mudah/sedang/sulit]",
+      "timeRequired": "[estimasi waktu]",
+      "materials": ["[bahan 1]", "[bahan 2]", "[bahan 3]"],
+      "tools": ["[alat 1]", "[alat 2]"],
+      "steps": [
+        "[langkah 1]", "[langkah 2]", "[langkah 3]", "[langkah 4]", "[langkah 5]"
+      ],
+      "tips": ["[tip 1]", "[tip 2]"],
+      "finalResult": "[hasil akhir]",
+      "benefits": ["[manfaat 1]", "[manfaat 2]"]
+    },
+    {
+      "id": 5,
+      "title": "[Judul artikel kreasi DIY kelima]",
+      "description": "[Deskripsi singkat kreasi kelima]",
+      "difficulty": "[mudah/sedang/sulit]",
+      "timeRequired": "[estimasi waktu]",
+      "materials": ["[bahan 1]", "[bahan 2]", "[bahan 3]"],
+      "tools": ["[alat 1]", "[alat 2]"],
+      "steps": [
+        "[langkah 1]", "[langkah 2]", "[langkah 3]", "[langkah 4]", "[langkah 5]"
+      ],
+      "tips": ["[tip 1]", "[tip 2]"],
+      "finalResult": "[hasil akhir]",
+      "benefits": ["[manfaat 1]", "[manfaat 2]"]
+    }
+  ]
 }
 
-Berikan response dalam format JSON yang valid. Gunakan bahasa Indonesia yang mudah dipahami dan praktis.`,
+WAJIB generate MINIMAL 5 artikel kreasi yang berbeda-beda! Berikan response dalam format JSON yang valid. Gunakan bahasa Indonesia yang mudah dipahami dan praktis.`,
           },
         ],
       },
@@ -100,22 +147,14 @@ Berikan response dalam format JSON yang valid. Gunakan bahasa Indonesia yang mud
         const parsedResponse = JSON.parse(cleanedText);
 
         // Cek jika AI mengatakan objek bukan sampah
-        const isNotTrash =
-          parsedResponse.basicAnalysis?.wasteType
-            ?.toLowerCase()
-            .includes("bukan sampah") ||
-          parsedResponse.basicAnalysis?.description
-            ?.toLowerCase()
-            .includes("objek bukanlah sampah") ||
-          parsedResponse.basicAnalysis?.description
-            ?.toLowerCase()
-            .includes("tidak berkaitan dengan sampah");
+        const isNotTrash = 
+          cleanedText.toLowerCase().includes("objek bukanlah sampah") ||
+          !parsedResponse.basicAnalysis ||
+          !parsedResponse.kreatiArticles;
 
         if (isNotTrash) {
           return NextResponse.json({
-            result:
-              parsedResponse.basicAnalysis?.description ||
-              "Objek ini bukanlah sampah",
+            result: "Objek ini bukanlah sampah",
             isNotTrash: true,
           });
         }
@@ -123,7 +162,7 @@ Berikan response dalam format JSON yang valid. Gunakan bahasa Indonesia yang mud
         // Return structured response for valid waste analysis
         return NextResponse.json({
           basicAnalysis: parsedResponse.basicAnalysis,
-          aiEducation: parsedResponse.aiEducation,
+          kreatiArticles: parsedResponse.kreatiArticles,
           isNotTrash: false,
         });
       } catch (parseError) {
