@@ -1,6 +1,15 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, X, Loader2, ImageIcon, Volume2, VolumeX, RefreshCw } from "lucide-react";
+import {
+  Sparkles,
+  Send,
+  X,
+  Loader2,
+  ImageIcon,
+  Volume2,
+  VolumeX,
+  RefreshCw,
+} from "lucide-react";
 import { AIAgentService } from "@/lib/ai-agent/maps-ai-agent";
 import Image from "next/image";
 
@@ -11,7 +20,11 @@ interface ChatBotFloatingProps {
   onNavigate: (locationId: string, transportMode: string) => void;
   onHighlightLocations: (locationIds: string[], highlightType: string) => void;
   onSetMapFilter: (filter: string) => void;
-  onFindNearby: (coordinates?: [number, number], radiusKm?: number, filterType?: string) => void;
+  onFindNearby: (
+    coordinates?: [number, number],
+    radiusKm?: number,
+    filterType?: string
+  ) => void;
   userLocation?: [number, number];
 }
 
@@ -38,22 +51,22 @@ interface RAGResult {
 interface ChatResponse {
   message: string;
   rag_results: RAGResult[];
-  search_mode: 'text' | 'image' | 'multimodal';
+  search_mode: "text" | "image" | "multimodal";
   embeddings_info: {
     text_embedding_length: number;
     image_embedding_length: number;
   };
 }
 
-const ChatBotFloating = ({ 
-  isOpen, 
-  onToggle, 
+const ChatBotFloating = ({
+  isOpen,
+  onToggle,
   onLocationDetails,
   onNavigate,
   onHighlightLocations,
   onSetMapFilter,
   onFindNearby,
-  userLocation
+  userLocation,
 }: ChatBotFloatingProps) => {
   const [query, setQuery] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -61,14 +74,18 @@ const ChatBotFloating = ({
   const [isLoading, setIsLoading] = useState(false);
   const [aiAgent, setAiAgent] = useState<AIAgentService | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
+    null
+  );
+  const [connectionStatus, setConnectionStatus] = useState<
+    "disconnected" | "connecting" | "connected"
+  >("disconnected");
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiResponse, setAiResponse] = useState<string>("");
   const [isTextVisible, setIsTextVisible] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -82,15 +99,15 @@ const ChatBotFloating = ({
       if (aiAgent && !isOpen) {
         aiAgent.disconnect();
         setAiAgent(null);
-        setConnectionStatus('disconnected');
+        setConnectionStatus("disconnected");
       }
     };
   }, [isOpen]);
 
   const initializeAgent = async () => {
-    setConnectionStatus('connecting');
+    setConnectionStatus("connecting");
     setError(null);
-    
+
     try {
       const agent = new AIAgentService({
         onLocationDetails,
@@ -100,24 +117,24 @@ const ChatBotFloating = ({
         onFindNearby,
         onAudioGenerated: handleAudioGenerated,
         onTextGenerated: handleTextGenerated, // Add text handler
-        userLocation
+        userLocation,
       });
-      
+
       await agent.initialize();
       setAiAgent(agent);
-      setConnectionStatus('connected');
-      console.log('AI Agent initialized successfully');
+      setConnectionStatus("connected");
+      console.log("AI Agent initialized successfully");
     } catch (error) {
-      console.error('Failed to initialize AI Agent:', error);
-      setError('Failed to connect to AI Agent');
-      setConnectionStatus('disconnected');
+      console.error("Failed to initialize AI Agent:", error);
+      setError("Failed to connect to AI Agent");
+      setConnectionStatus("disconnected");
     }
   };
   const handleTextGenerated = (text: string) => {
-    console.log('📝 Text response received:', text);
+    console.log("📝 Text response received:", text);
     setAiResponse(text);
     setIsTextVisible(true);
-    
+
     // Auto-hide text after 10 seconds
     setTimeout(() => {
       setIsTextVisible(false);
@@ -139,189 +156,193 @@ const ChatBotFloating = ({
   }, [isOpen]);
 
   // Perbaiki method handleAudioGenerated
-const handleAudioGenerated = async (audioBase64: string) => {
-  if (!isAudioEnabled) {
-    console.log('🔇 Audio disabled, skipping playback');
-    return;
-  }
-
-  console.log('🎵 Received complete audio for playback:', {
-    size: audioBase64.length,
-    timestamp: new Date().toISOString()
-  });
-
-  try {
-    // Stop any currently playing audio
-    if (currentAudio) {
-      console.log('⏹️ Stopping current audio');
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      currentAudio.src = '';
-      setCurrentAudio(null);
-    }
-
-    // Convert base64 to audio buffer with better error handling
-    let binaryString: string;
-    try {
-      binaryString = atob(audioBase64);
-    } catch (decodeError) {
-      console.error('❌ Failed to decode base64 audio:', decodeError);
+  const handleAudioGenerated = async (audioBase64: string) => {
+    if (!isAudioEnabled) {
+      console.log("🔇 Audio disabled, skipping playback");
       return;
     }
 
-    // Create typed array from binary string
-    const arrayBuffer = new ArrayBuffer(binaryString.length);
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    for (let i = 0; i < binaryString.length; i++) {
-      uint8Array[i] = binaryString.charCodeAt(i);
-    }
-
-    // Create blob with proper MIME type
-    const blob = new Blob([uint8Array], { type: 'audio/wav' });
-    
-    // Validate blob size
-    if (blob.size === 0) {
-      console.error('❌ Generated audio blob is empty');
-      return;
-    }
-    
-    console.log('📊 Audio blob created:', {
-      size: blob.size,
-      type: blob.type
+    console.log("🎵 Received complete audio for playback:", {
+      size: audioBase64.length,
+      timestamp: new Date().toISOString(),
     });
 
-    const audioUrl = URL.createObjectURL(blob);
-    
-    // Create new audio element with enhanced configuration
-    const audio = new Audio();
-    
-    // Set audio properties
-    audio.preload = 'auto'; // Changed from 'metadata' to 'auto'
-    audio.volume = 0.8;
-    audio.crossOrigin = 'anonymous';
+    try {
+      // Stop any currently playing audio
+      if (currentAudio) {
+        console.log("⏹️ Stopping current audio");
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio.src = "";
+        setCurrentAudio(null);
+      }
 
-    // Set up promise-based loading
-    const loadAudio = () => {
-      return new Promise<void>((resolve, reject) => {
-        const handleCanPlayThrough = () => {
-          console.log('✅ Audio can play through completely:', {
-            duration: audio.duration,
-            readyState: audio.readyState
+      // Convert base64 to audio buffer with better error handling
+      let binaryString: string;
+      try {
+        binaryString = atob(audioBase64);
+      } catch (decodeError) {
+        console.error("❌ Failed to decode base64 audio:", decodeError);
+        return;
+      }
+
+      // Create typed array from binary string
+      const arrayBuffer = new ArrayBuffer(binaryString.length);
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      for (let i = 0; i < binaryString.length; i++) {
+        uint8Array[i] = binaryString.charCodeAt(i);
+      }
+
+      // Create blob with proper MIME type
+      const blob = new Blob([uint8Array], { type: "audio/wav" });
+
+      // Validate blob size
+      if (blob.size === 0) {
+        console.error("❌ Generated audio blob is empty");
+        return;
+      }
+
+      console.log("📊 Audio blob created:", {
+        size: blob.size,
+        type: blob.type,
+      });
+
+      const audioUrl = URL.createObjectURL(blob);
+
+      // Create new audio element with enhanced configuration
+      const audio = new Audio();
+
+      // Set audio properties
+      audio.preload = "auto"; // Changed from 'metadata' to 'auto'
+      audio.volume = 0.8;
+      audio.crossOrigin = "anonymous";
+
+      // Set up promise-based loading
+      const loadAudio = () => {
+        return new Promise<void>((resolve, reject) => {
+          const handleCanPlayThrough = () => {
+            console.log("✅ Audio can play through completely:", {
+              duration: audio.duration,
+              readyState: audio.readyState,
+            });
+            cleanup();
+            resolve();
+          };
+
+          const handleError = () => {
+            console.error("❌ Audio loading error:", {
+              error: audio.error,
+              code: audio.error?.code,
+              message: audio.error?.message,
+            });
+            cleanup();
+            reject(new Error(`Audio loading failed: ${audio.error?.message}`));
+          };
+
+          const handleLoadStart = () => {
+            console.log("📥 Audio loading started");
+          };
+
+          const handleProgress = () => {
+            if (audio.buffered.length > 0) {
+              const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+              const duration = audio.duration || 0;
+              const percent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
+              console.log(`📊 Audio buffering: ${percent.toFixed(1)}%`);
+            }
+          };
+
+          const cleanup = () => {
+            audio.removeEventListener("canplaythrough", handleCanPlayThrough);
+            audio.removeEventListener("error", handleError);
+            audio.removeEventListener("loadstart", handleLoadStart);
+            audio.removeEventListener("progress", handleProgress);
+          };
+
+          // Add event listeners
+          audio.addEventListener("canplaythrough", handleCanPlayThrough, {
+            once: true,
           });
-          cleanup();
-          resolve();
+          audio.addEventListener("error", handleError, { once: true });
+          audio.addEventListener("loadstart", handleLoadStart, { once: true });
+          audio.addEventListener("progress", handleProgress);
+
+          // Set source and start loading
+          audio.src = audioUrl;
+          audio.load();
+        });
+      };
+
+      // Set up playback event handlers
+      const setupPlaybackHandlers = () => {
+        const handlePlay = () => {
+          console.log("▶️ Audio playback started");
+          setIsPlayingAudio(true);
+        };
+
+        const handlePause = () => {
+          console.log("⏸️ Audio playback paused");
+          setIsPlayingAudio(false);
+        };
+
+        const handleEnded = () => {
+          console.log("🏁 Audio playback completed");
+          cleanupAudio();
         };
 
         const handleError = () => {
-          console.error('❌ Audio loading error:', {
+          console.error("❌ Audio playback error:", {
             error: audio.error,
             code: audio.error?.code,
-            message: audio.error?.message
+            message: audio.error?.message,
           });
-          cleanup();
-          reject(new Error(`Audio loading failed: ${audio.error?.message}`));
+          cleanupAudio();
         };
 
-        const handleLoadStart = () => {
-          console.log('📥 Audio loading started');
+        const cleanupAudio = () => {
+          URL.revokeObjectURL(audioUrl);
+          setCurrentAudio(null);
+          setIsPlayingAudio(false);
         };
 
-        const handleProgress = () => {
-          if (audio.buffered.length > 0) {
-            const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
-            const duration = audio.duration || 0;
-            const percent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
-            console.log(`📊 Audio buffering: ${percent.toFixed(1)}%`);
-          }
-        };
+        // Add playback event listeners
+        audio.addEventListener("play", handlePlay);
+        audio.addEventListener("pause", handlePause);
+        audio.addEventListener("ended", handleEnded);
+        audio.addEventListener("error", handleError);
 
-        const cleanup = () => {
-          audio.removeEventListener('canplaythrough', handleCanPlayThrough);
-          audio.removeEventListener('error', handleError);
-          audio.removeEventListener('loadstart', handleLoadStart);
-          audio.removeEventListener('progress', handleProgress);
-        };
-
-        // Add event listeners
-        audio.addEventListener('canplaythrough', handleCanPlayThrough, { once: true });
-        audio.addEventListener('error', handleError, { once: true });
-        audio.addEventListener('loadstart', handleLoadStart, { once: true });
-        audio.addEventListener('progress', handleProgress);
-
-        // Set source and start loading
-        audio.src = audioUrl;
-        audio.load();
-      });
-    };
-
-    // Set up playback event handlers
-    const setupPlaybackHandlers = () => {
-      const handlePlay = () => {
-        console.log('▶️ Audio playback started');
-        setIsPlayingAudio(true);
+        return cleanupAudio;
       };
 
-      const handlePause = () => {
-        console.log('⏸️ Audio playback paused');
-        setIsPlayingAudio(false);
-      };
+      // Load audio first, then set up playback
+      await loadAudio();
 
-      const handleEnded = () => {
-        console.log('🏁 Audio playback completed');
+      const cleanupAudio = setupPlaybackHandlers();
+      setCurrentAudio(audio);
+
+      // Start playback
+      try {
+        await audio.play();
+        console.log("🎵 Audio started playing successfully");
+      } catch (playError) {
+        console.error("❌ Failed to start audio playback:", playError);
         cleanupAudio();
-      };
 
-      const handleError = () => {
-        console.error('❌ Audio playback error:', {
-          error: audio.error,
-          code: audio.error?.code,
-          message: audio.error?.message
-        });
-        cleanupAudio();
-      };
-
-      const cleanupAudio = () => {
-        URL.revokeObjectURL(audioUrl);
-        setCurrentAudio(null);
-        setIsPlayingAudio(false);
-      };
-
-      // Add playback event listeners
-      audio.addEventListener('play', handlePlay);
-      audio.addEventListener('pause', handlePause);
-      audio.addEventListener('ended', handleEnded);
-      audio.addEventListener('error', handleError);
-
-      return cleanupAudio;
-    };
-
-    // Load audio first, then set up playback
-    await loadAudio();
-    
-    const cleanupAudio = setupPlaybackHandlers();
-    setCurrentAudio(audio);
-
-    // Start playback
-    try {
-      await audio.play();
-      console.log('🎵 Audio started playing successfully');
-    } catch (playError) {
-      console.error('❌ Failed to start audio playback:', playError);
-      cleanupAudio();
-      
-      // Try to handle autoplay restrictions
-      if (playError instanceof Error && playError.name === 'NotAllowedError') {
-        console.log('ℹ️ Autoplay blocked - user interaction required');
-        // You could show a UI notification here
+        // Try to handle autoplay restrictions
+        if (
+          playError instanceof Error &&
+          playError.name === "NotAllowedError"
+        ) {
+          console.log("ℹ️ Autoplay blocked - user interaction required");
+          // You could show a UI notification here
+        }
       }
+    } catch (error) {
+      console.error("❌ Error in handleAudioGenerated:", error);
+      setIsPlayingAudio(false);
     }
-    
-  } catch (error) {
-    console.error('❌ Error in handleAudioGenerated:', error);
-    setIsPlayingAudio(false);
-  }
-};
+  };
 
   const toggleAudio = () => {
     setIsAudioEnabled(!isAudioEnabled);
@@ -374,36 +395,38 @@ const handleAudioGenerated = async (audioBase64: string) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() && !selectedImage) return;
-    if (isProcessing) return; 
+    if (isProcessing) return;
     if (selectedImage && !query.trim()) {
-      console.log('❌ Image provided but no text query');
-      setError('Mohon berikan deskripsi atau pertanyaan untuk gambar yang diupload');
+      console.log("❌ Image provided but no text query");
+      setError(
+        "Mohon berikan deskripsi atau pertanyaan untuk gambar yang diupload"
+      );
       return;
     }
 
     setIsLoading(true);
     setIsProcessing(true);
     setError(null);
-    
+
     try {
       // First get RAG results
       const formData = new FormData();
-      formData.append('query', query);
+      formData.append("query", query);
       if (selectedImage) {
-        formData.append('image', selectedImage);
+        formData.append("image", selectedImage);
       }
 
-      const response = await fetch('/api/chatbot-rag', {
-        method: 'POST',
+      const response = await fetch("/api/chatbot-rag", {
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to process query');
+        throw new Error("Failed to process query");
       }
 
       const data: ChatResponse = await response.json();
-      
+
       // Enhanced console logging
       // console.log('=== SAMPAHIN AI CHATBOT RESULTS ===');
       // console.log('🔍 Query:', query);
@@ -414,7 +437,7 @@ const handleAudioGenerated = async (audioBase64: string) => {
       // console.log('   - Image Embedding:', data.embeddings_info.image_embedding_length, 'dimensions');
       // console.log('📍 RAG Results Count:', data.rag_results.length);
       // console.log('');
-      
+
       // if (data.rag_results.length > 0) {
       //   console.log('📋 Detailed Location Results:');
       //   data.rag_results.forEach((result, index) => {
@@ -430,21 +453,21 @@ const handleAudioGenerated = async (audioBase64: string) => {
       // console.log('===================================');
 
       // Send to AI Agent with RAG results
-      if (aiAgent && connectionStatus === 'connected' && !aiAgent.processing) {
+      if (aiAgent && connectionStatus === "connected" && !aiAgent.processing) {
         let imageBase64: string | undefined;
         if (selectedImage) {
           const bytes = await selectedImage.arrayBuffer();
           const buffer = Buffer.from(bytes);
-          imageBase64 = buffer.toString('base64');
+          imageBase64 = buffer.toString("base64");
         }
 
         try {
           await aiAgent.sendMessage(query, imageBase64, data.rag_results);
-          console.log('✅ Message sent to AI Agent with RAG context');
+          console.log("✅ Message sent to AI Agent with RAG context");
         } catch (agentError) {
-          console.error('❌ AI Agent error:', agentError);
-          setError('AI Agent connection failed. Trying to reconnect...');
-          
+          console.error("❌ AI Agent error:", agentError);
+          setError("AI Agent connection failed. Trying to reconnect...");
+
           // Try to reconnect
           setTimeout(async () => {
             await handleReconnect();
@@ -452,23 +475,24 @@ const handleAudioGenerated = async (audioBase64: string) => {
         }
       } else {
         if (aiAgent?.processing) {
-          setError('AI Agent is busy processing another request');
+          setError("AI Agent is busy processing another request");
         } else {
-          setError('AI Agent not connected');
+          setError("AI Agent not connected");
         }
-        console.warn('AI Agent not available:', { 
-          hasAgent: !!aiAgent, 
-          connected: connectionStatus, 
-          processing: aiAgent?.processing 
+        console.warn("AI Agent not available:", {
+          hasAgent: !!aiAgent,
+          connected: connectionStatus,
+          processing: aiAgent?.processing,
         });
       }
 
       // Reset form after successful submission
       resetForm();
-      
     } catch (error) {
-      console.error('❌ Chatbot Error:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error occurred');
+      console.error("❌ Chatbot Error:", error);
+      setError(
+        error instanceof Error ? error.message : "Unknown error occurred"
+      );
     } finally {
       setIsLoading(false);
       setIsProcessing(false);
@@ -497,9 +521,12 @@ const handleAudioGenerated = async (audioBase64: string) => {
 
   // Floating Input Box
   return (
-    <div className="fixed bottom-4 right-20 z-[60] w-80" onClick={handleClickOutside}>
+    <div
+      className="fixed bottom-4 right-20 z-[60] w-80"
+      onClick={handleClickOutside}
+    >
       <div className="bg-white rounded-lg shadow-xl border border-gray-200">
-      {isTextVisible && aiResponse && (
+        {isTextVisible && aiResponse && (
           <div className="p-3 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -523,40 +550,51 @@ const handleAudioGenerated = async (audioBase64: string) => {
           <div className="flex items-center space-x-2">
             <div className="relative">
               <Sparkles className="text-blue-600" size={20} />
-              {connectionStatus === 'connected' && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              )}
             </div>
             <h4 className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               AI Assistant
             </h4>
             {/* Connection Status Indicator */}
             <div className="flex items-center space-x-1">
-              <div className={`w-2 h-2 rounded-full ${
-                connectionStatus === 'connected' ? 'bg-green-500' :
-                connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                'bg-red-500'
-              }`} title={`Status: ${connectionStatus}`} />
-              
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  connectionStatus === "connected"
+                    ? "bg-green-500"
+                    : connectionStatus === "connecting"
+                    ? "bg-yellow-500 animate-pulse"
+                    : "bg-red-500"
+                }`}
+                title={`Status: ${connectionStatus}`}
+              />
+
               {/* Audio Playing Indicator */}
               {isPlayingAudio && (
                 <div className="flex items-center space-x-1">
                   <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
-                  <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                  <div
+                    className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"
+                    style={{ animationDelay: "0.2s" }}
+                  ></div>
+                  <div
+                    className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"
+                    style={{ animationDelay: "0.4s" }}
+                  ></div>
                 </div>
               )}
-              
-              {(connectionStatus === 'disconnected' || connectionStatus === 'connecting') && (
+
+              {(connectionStatus === "disconnected" ||
+                connectionStatus === "connecting") && (
                 <button
                   onClick={handleReconnect}
                   className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                   title="Reconnect"
-                  disabled={connectionStatus === 'connecting'}
+                  disabled={connectionStatus === "connecting"}
                 >
-                  <RefreshCw 
-                    size={12} 
-                    className={connectionStatus === 'connecting' ? 'animate-spin' : ''} 
+                  <RefreshCw
+                    size={12}
+                    className={
+                      connectionStatus === "connecting" ? "animate-spin" : ""
+                    }
                   />
                 </button>
               )}
@@ -566,15 +604,15 @@ const handleAudioGenerated = async (audioBase64: string) => {
             <button
               onClick={toggleAudio}
               className={`p-1 rounded transition-colors ${
-                isAudioEnabled 
-                  ? 'text-blue-600 hover:bg-blue-100' 
-                  : 'text-gray-400 hover:bg-gray-100'
+                isAudioEnabled
+                  ? "text-blue-600 hover:bg-blue-100"
+                  : "text-gray-400 hover:bg-gray-100"
               }`}
-              title={isAudioEnabled ? 'Matikan Audio' : 'Nyalakan Audio'}
+              title={isAudioEnabled ? "Matikan Audio" : "Nyalakan Audio"}
             >
               {isAudioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </button>
-            
+
             {/* Stop Audio Button */}
             {isPlayingAudio && (
               <button
@@ -585,7 +623,7 @@ const handleAudioGenerated = async (audioBase64: string) => {
                 <X size={16} />
               </button>
             )}
-            
+
             <button
               onClick={onToggle}
               className="p-1 hover:bg-gray-200 rounded-full transition-colors"
@@ -608,9 +646,9 @@ const handleAudioGenerated = async (audioBase64: string) => {
             <div className="relative inline-block">
               <Image
                 width={200}
-                height={200} 
-                src={imagePreview} 
-                alt="Preview" 
+                height={200}
+                src={imagePreview}
+                alt="Preview"
                 className="w-16 h-16 object-cover rounded border"
               />
               <button
@@ -634,16 +672,16 @@ const handleAudioGenerated = async (audioBase64: string) => {
               placeholder="Tanya tentang kebersihan lokasi, minta lihat detail, atau navigasi..."
               className="w-full p-2 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={2}
-              disabled={isLoading || connectionStatus !== 'connected'}
+              disabled={isLoading || connectionStatus !== "connected"}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit(e);
                 }
               }}
             />
           </div>
-          
+
           <div className="flex justify-between items-center">
             <div className="flex space-x-1">
               <input
@@ -657,20 +695,20 @@ const handleAudioGenerated = async (audioBase64: string) => {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                disabled={isLoading || connectionStatus !== 'connected'}
+                disabled={isLoading || connectionStatus !== "connected"}
                 title="Upload gambar"
               >
                 <ImageIcon size={16} />
               </button>
             </div>
-            
+
             <button
               type="submit"
               disabled={
                 // Original conditions
-                isLoading || 
-                isProcessing || 
-                connectionStatus !== 'connected' ||
+                isLoading ||
+                isProcessing ||
+                connectionStatus !== "connected" ||
                 // New condition: disable if image exists but no text query
                 (selectedImage && !query.trim()) ||
                 // Also disable if no input at all
@@ -681,7 +719,7 @@ const handleAudioGenerated = async (audioBase64: string) => {
               {isLoading || isProcessing ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  <span>{isProcessing ? 'Processing...' : 'Loading...'}</span>
+                  <span>{isProcessing ? "Processing..." : "Loading..."}</span>
                 </>
               ) : (
                 <>
