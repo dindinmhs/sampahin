@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { MapPin, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import MenuDropdown from "../maps/menu";
 import { useUserStore } from "@/lib/store/user-store";
 
@@ -41,8 +42,14 @@ const Header: React.FC<HeaderProps> = ({ authComponent }) => {
           {/* Logo */}
           <div className="flex items-center space-x-3">
             <div className="relative">
-              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/30 rotate-3 hover:rotate-0 transition-transform duration-300">
-                <MapPin className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
+                <Image
+                  src="/logo.png"
+                  alt="Sampahin Logo"
+                  width={48}
+                  height={48}
+                  className="w-full h-full object-contain"
+                />
               </div>
             </div>
             <div>
