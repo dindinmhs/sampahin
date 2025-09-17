@@ -1,29 +1,29 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Trophy, TrendingUp, MapPin } from "lucide-react";
+import { Trophy, TrendingUp, MapPin, Users } from "lucide-react";
 import Link from "next/link";
 
 interface TopCity {
-  name: string;
+  city: string;
   province: string;
-  score: number;
-  trend: "up" | "down" | "stable";
+  avgScore: number;
+  totalReports: number;
+  rank: number;
 }
 
-const topCities: TopCity[] = [
-  { name: "Bandung", province: "Jawa Barat", score: 95.2, trend: "up" },
-  { name: "Surabaya", province: "Jawa Timur", score: 92.8, trend: "up" },
-  {
-    name: "Yogyakarta",
-    province: "DI Yogyakarta",
-    score: 91.5,
-    trend: "stable",
-  },
-];
+interface LeaderboardStats {
+  totalUsers: number;
+  totalPoints: number;
+  totalMissions: number;
+  avgPointsPerUser: number;
+}
 
 export const LeaderboardPreview = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const [topCities, setTopCities] = useState<TopCity[]>([]);
+  const [stats, setStats] = useState<LeaderboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -38,8 +38,71 @@ export const LeaderboardPreview = () => {
     const element = document.getElementById("leaderboard-preview");
     if (element) observer.observe(element);
 
+    // Fetch data
+    fetchLeaderboardData();
+
     return () => observer.disconnect();
   }, []);
+
+  const fetchLeaderboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch city leaderboard
+      const citiesResponse = await fetch("/api/leaderboard/cities");
+
+      // Check if response is ok and content-type is JSON
+      if (!citiesResponse.ok) {
+        throw new Error(`Cities API error: ${citiesResponse.status}`);
+      }
+
+      const citiesContentType = citiesResponse.headers.get("content-type");
+      if (
+        !citiesContentType ||
+        !citiesContentType.includes("application/json")
+      ) {
+        throw new Error("Cities API returned non-JSON response");
+      }
+
+      const citiesResult = await citiesResponse.json();
+
+      // Fetch user leaderboard stats
+      const usersResponse = await fetch("/api/leaderboard");
+
+      if (!usersResponse.ok) {
+        throw new Error(`Users API error: ${usersResponse.status}`);
+      }
+
+      const usersContentType = usersResponse.headers.get("content-type");
+      if (!usersContentType || !usersContentType.includes("application/json")) {
+        throw new Error("Users API returned non-JSON response");
+      }
+
+      const usersResult = await usersResponse.json();
+
+      if (citiesResult.success) {
+        // Get top 3 cities
+        const top3 = citiesResult.data.slice(0, 3);
+        setTopCities(top3);
+      }
+
+      if (usersResult.success) {
+        setStats(usersResult.stats);
+      }
+    } catch (err) {
+      console.error("Failed to fetch leaderboard data:", err);
+      // Set empty data on error to prevent UI issues
+      setTopCities([]);
+      setStats({
+        totalUsers: 0,
+        totalPoints: 0,
+        totalMissions: 0,
+        avgPointsPerUser: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <section
@@ -78,44 +141,55 @@ export const LeaderboardPreview = () => {
                 </h3>
               </div>
 
-              <div className="space-y-4">
-                {topCities.map((city, index) => (
-                  <div
-                    key={city.name}
-                    className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${
-                          index === 0
-                            ? "bg-yellow-500"
-                            : index === 1
-                            ? "bg-gray-400"
-                            : "bg-amber-600"
-                        }`}
-                      >
-                        {index + 1}
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
+                  <p className="mt-2 text-slate-600">Memuat data...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {topCities.map((city, index) => (
+                    <div
+                      key={`${city.city}-${city.province}`}
+                      className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-100"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${
+                            index === 0
+                              ? "bg-yellow-500"
+                              : index === 1
+                              ? "bg-gray-400"
+                              : "bg-amber-600"
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-slate-800">
+                            {city.city}
+                          </h4>
+                          <p className="text-sm text-slate-600">
+                            {city.province}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-slate-800">
-                          {city.name}
-                        </h4>
-                        <p className="text-sm text-slate-600">
-                          {city.province}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold text-emerald-600">
-                        {city.score}
-                      </span>
-                      {city.trend === "up" && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-emerald-600">
+                          {city.avgScore.toFixed(1)}
+                        </span>
                         <TrendingUp className="w-4 h-4 text-emerald-500" />
-                      )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+
+                  {topCities.length === 0 && !loading && (
+                    <div className="text-center py-8 text-slate-500">
+                      Belum ada data kota tersedia
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Link
                 href="/leaderboard"
@@ -134,44 +208,54 @@ export const LeaderboardPreview = () => {
                 : "opacity-0 translate-x-10"
             }`}
           >
-            <div className="grid grid-cols-2 gap-6">
-              <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-teal-200 shadow-lg">
-                <div className="text-center">
-                  <MapPin className="w-8 h-8 text-teal-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-slate-800 mb-1">34</p>
-                  <p className="text-slate-600">Provinsi</p>
-                </div>
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
+                <p className="mt-2 text-slate-600">Memuat statistik...</p>
               </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-teal-200 shadow-lg">
+                  <div className="text-center">
+                    <MapPin className="w-8 h-8 text-teal-600 mx-auto mb-3" />
+                    <p className="text-3xl font-bold text-slate-800 mb-1">
+                      {topCities.length}
+                    </p>
+                    <p className="text-slate-600">Kota Aktif</p>
+                  </div>
+                </div>
 
-              <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-emerald-200 shadow-lg">
-                <div className="text-center">
-                  <Trophy className="w-8 h-8 text-emerald-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-slate-800 mb-1">514</p>
-                  <p className="text-slate-600">Kota/Kabupaten</p>
+                <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-emerald-200 shadow-lg">
+                  <div className="text-center">
+                    <Users className="w-8 h-8 text-emerald-600 mx-auto mb-3" />
+                    <p className="text-3xl font-bold text-slate-800 mb-1">
+                      {stats?.totalUsers || 0}
+                    </p>
+                    <p className="text-slate-600">User Aktif</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-cyan-200 shadow-lg col-span-2">
-                <div className="text-center">
-                  <TrendingUp className="w-8 h-8 text-cyan-600 mx-auto mb-3" />
-                  <p className="text-3xl font-bold text-slate-800 mb-1">
-                    89.2%
-                  </p>
-                  <p className="text-slate-600">
-                    Peningkatan Kebersihan Nasional
-                  </p>
+                <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-cyan-200 shadow-lg col-span-2">
+                  <div className="text-center">
+                    <Trophy className="w-8 h-8 text-cyan-600 mx-auto mb-3" />
+                    <p className="text-3xl font-bold text-slate-800 mb-1">
+                      {stats?.totalMissions || 0}
+                    </p>
+                    <p className="text-slate-600">Total Misi Selesai</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-6 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-2xl p-6 border border-emerald-200">
               <h4 className="font-semibold text-slate-800 mb-2">
-                💡 Tahukah Kamu?
+                💡 Statistik Real-time
               </h4>
               <p className="text-slate-600 text-sm">
-                Kota dengan skor kebersihan di atas 90 memiliki tingkat kepuasan
-                masyarakat yang 40% lebih tinggi dan kualitas udara yang 25%
-                lebih baik!
+                {stats
+                  ? `Total poin terkumpul: ${stats.totalPoints.toLocaleString()} | 
+                   Rata-rata poin per user: ${stats.avgPointsPerUser}`
+                  : "Data leaderboard diperbarui secara real-time berdasarkan aktivitas komunitas dan laporan kebersihan."}
               </p>
             </div>
           </div>
