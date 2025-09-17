@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useState, useRef, Dispatch, SetStateAction } from "react";
+import { useState, useRef, Dispatch, SetStateAction, useEffect } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { DragCloseDrawer } from "../common/modal";
@@ -601,6 +601,11 @@ const GradeShareForm = ({
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const user = useUserStore((state) => state.user);
 
+  useEffect(() => {
+    // Load default alamat berdasarkan koordinat default
+    getAddressFromCoordinates(form.coord[0], form.coord[1]);
+  }, []);
+
   // Fungsi untuk reverse geocoding
   const getAddressFromCoordinates = async (lat: number, lon: number) => {
     setIsLoadingAddress(true);
@@ -653,14 +658,14 @@ const GradeShareForm = ({
       // Lebih spesifik error handling
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch')) {
-          alert('Koneksi internet bermasalah. Silakan periksa koneksi Anda.');
+          console.error('Koneksi internet bermasalah.');
         } else if (error.message.includes('rate limit') || error.message.includes('403')) {
-          alert('Terlalu banyak permintaan. Silakan tunggu beberapa saat dan coba lagi.');
+          console.error('Terlalu banyak permintaan geocoding.');
         } else {
-          alert('Gagal mendapatkan alamat dari koordinat. Silakan isi alamat secara manual.');
+          console.error('Gagal mendapatkan alamat dari koordinat.');
         }
       } else {
-        alert('Gagal mendapatkan alamat dari koordinat. Silakan isi alamat secara manual.');
+        console.error('Gagal mendapatkan alamat dari koordinat.');
       }
     } finally {
       setIsLoadingAddress(false);
@@ -907,6 +912,7 @@ const GradeShareForm = ({
               className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
             />
           </div>
+          
           <div>
             <div className="flex items-center justify-between mb-1">
               <Label
@@ -917,11 +923,9 @@ const GradeShareForm = ({
               </Label>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
                 onClick={getCurrentLocation}
                 disabled={isLoadingAddress}
-                className="text-xs"
+                className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 h-8 rounded-full"
               >
                 {isLoadingAddress ? "Loading..." : "Lokasi Saat Ini"}
               </Button>
@@ -929,21 +933,25 @@ const GradeShareForm = ({
             <Input
               id="alamat"
               type="text"
-              placeholder="Masukkan Alamat"
-              required
+              placeholder="Alamat akan terisi otomatis berdasarkan koordinat"
               value={form.alamat}
-              onChange={(e) => setForm({ ...form, alamat: e.target.value })}
-              className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              disabled={isLoadingAddress}
+              className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+              disabled={true} // Always disabled - only filled from coordinates
+              readOnly
             />
-            {isLoadingAddress && (
-              <p className="text-xs text-gray-500 mt-1">Sedang mendapatkan alamat...</p>
-            )}
+            <p className="text-xs text-gray-500 mt-1">
+              {isLoadingAddress 
+                ? "Sedang mendapatkan alamat..." 
+                : "Alamat akan berubah otomatis saat Anda memilih koordinat di peta"
+              }
+            </p>
           </div>
+
           <CoordinatePicker
             value={form.coord}
             onChange={handleCoordinateChange}
           />
+          
           <div className="flex items-center gap-2 justify-end">
             {!loading && (
               <Button

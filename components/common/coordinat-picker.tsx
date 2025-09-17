@@ -46,29 +46,8 @@ const CoordinatePicker = ({
     }
   }, [value]);
 
-  const detectLocation = () => {
-    if (!navigator.geolocation) return alert("Geolocation not supported");
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-      setPosition(coords);
-      onChange?.(coords);
-      if (mapRef.current) {
-        mapRef.current.setView(coords, 15, { animate: true });
-      }
-    });
-  };
-
   return (
     <div className="space-y-2">
-      {!readOnly && (
-        <button
-          type="button"
-          onClick={detectLocation}
-          className="text-sm text-white bg-green-500 px-4 py-2 rounded hover:bg-green-600"
-        >
-          Gunakan Lokasi Saat Ini
-        </button>
-      )}
 
       <MapContainer
         center={position}

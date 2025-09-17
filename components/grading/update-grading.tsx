@@ -19,6 +19,14 @@ interface AnalysisResultProps {
   skor_kebersihan: number | null;
   grade: string | null;
   deskripsi: string | null;
+  imageSimilarity?: number | null;
+  canShare?: boolean;
+  reason?: 'grade_insufficient' | 'similarity_too_low' | 'valid' | 'no_previous_report' | 'no_embedding_first_report';
+  previousReport?: {
+    grade: string;
+    score: number;
+    report_id: string;
+  };
 }
 
 export const UpdateGradingForm = () => {
@@ -291,60 +299,86 @@ export const UpdateGradingForm = () => {
   };
 
   const handleAnalysis = async () => {
-    if (!selectedImage) {
-      alert("Silakan pilih gambar terlebih dahulu");
-      return;
-    }
+  if (!selectedImage) {
+    alert("Silakan pilih gambar terlebih dahulu");
+    return;
+  }
 
-    setIsAnalyzing(true);
-    setAnalysisResult(null);
+  setIsAnalyzing(true);
+  setAnalysisResult(null);
 
-    try {
-      const toBase64 = (file: File): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            const base64 = (reader.result as string).split(",")[1];
-            resolve(base64);
-          };
-          reader.onerror = (error) => reject(error);
-        });
-
-      const base64Image = await toBase64(selectedImage);
-
-      const res = await fetch("/api/grading", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64Image }),
+  try {
+    const toBase64 = (file: File): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          resolve(base64);
+        };
+        reader.onerror = (error) => reject(error);
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
+    const base64Image = await toBase64(selectedImage);
 
-      const data = await res.json();
+    console.log('Starting update grading check for location:', placeId);
 
-      if (data.result) {
-        setAnalysisResult(data.result);
-      } else {
-        setAnalysisResult({
-          skor_kebersihan: null,
-          grade: null,
-          deskripsi: "Gagal menganalisis gambar.",
-        });
-      }
-    } catch (err) {
-      console.error("Analysis error:", err);
+    // Call the new API for comprehensive check
+    const res = await fetch("/api/update-grading-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        image: base64Image,
+        locationId: placeId,
+        similarityThreshold: 0.6 // 60% minimum similarity
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    console.log('Update grading check result:', data);
+
+    if (data.grading) {
+      // Set analysis result with all the information
+      setAnalysisResult({
+        skor_kebersihan: data.grading.skor_kebersihan,
+        grade: data.grading.grade,
+        deskripsi: data.grading.deskripsi,
+        imageSimilarity: data.similarity?.image_similarity || null,
+        canShare: data.canShare,
+        reason: data.reason,
+        previousReport: data.similarity ? {
+          grade: data.similarity.grade,
+          score: data.similarity.score,
+          report_id: data.similarity.report_id
+        } : undefined
+      });
+    } else {
       setAnalysisResult({
         skor_kebersihan: null,
         grade: null,
-        deskripsi: "Terjadi kesalahan saat analisis. Silakan coba lagi.",
+        deskripsi: "Gagal menganalisis gambar.",
+        canShare: false,
+        reason: 'grade_insufficient'
       });
-    } finally {
-      setIsAnalyzing(false);
     }
-  };
+  } catch (err) {
+    console.error("Analysis error:", err);
+    setAnalysisResult({
+      skor_kebersihan: null,
+      grade: null,
+      deskripsi: "Terjadi kesalahan saat analisis. Silakan coba lagi.",
+      canShare: false,
+      reason: 'grade_insufficient'
+    });
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
   useEffect(()=>{
     const getLocation = async () => {
         const { data: locations, error } = await supabase
@@ -598,88 +632,181 @@ export const UpdateGradingForm = () => {
 
           {/* Analysis Result */}
           {analysisResult && (
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-800 mb-2">
-                Hasil Analisis AI
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
-                <div className="space-y-2">
-                  {/* Only show score and grade if it's a valid grading result */}
-                  {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
-                    <div className="flex justify-start gap-8">
-                      <div className="flex flex-col justify-center items-center">
-                        <span className="font-medium">Skor Kebersihan:</span>
-                        <span
-                          className={`font-bold px-2 py-1 rounded text-4xl ${
-                            analysisResult.grade === "A"
-                              ? "text-green-500"
-                              : analysisResult.grade === "B"
-                              ? "text-blue-500"
-                              : analysisResult.grade === "C"
-                              ? "text-yellow-500"
-                              : analysisResult.grade === "D"
-                              ? "text-orange-600"
-                              : analysisResult.grade === "E"
-                              ? "text-red-500"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {analysisResult.skor_kebersihan}
-                        </span>
-                      </div>
-                      <div className="flex flex-col justify-center items-center">
-                        <span className="font-medium">Grade:</span>
-                        <span
-                          className={`font-bold px-2 py-1 rounded text-4xl ${
-                            analysisResult.grade === "A"
-                              ? "text-green-500"
-                              : analysisResult.grade === "B"
-                              ? "text-blue-500"
-                              : analysisResult.grade === "C"
-                              ? "text-yellow-500"
-                              : analysisResult.grade === "D"
-                              ? "text-orange-600"
-                              : analysisResult.grade === "E"
-                              ? "text-red-500"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {analysisResult.grade}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <div className={analysisResult.skor_kebersihan !== null && analysisResult.grade !== null ? "mt-3 pt-2 border-t border-gray-200" : ""}>
-                    <p className="text-gray-600 leading-relaxed">
-                      {analysisResult.deskripsi ?? "Tidak tersedia"}
-                    </p>
-                  </div>
-                </div>
-              </div>
+  <div className="mb-4">
+    <h3 className="text-sm font-medium text-gray-800 mb-2">
+      Hasil Analisis AI
+    </h3>
+    <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
+      <div className="space-y-2">
+        {/* Only show score and grade if it's a valid grading result */}
+        {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
+          <div className="flex justify-start gap-8">
+            <div className="flex flex-col justify-center items-center">
+              <span className="font-medium">Skor Kebersihan:</span>
+              <span
+                className={`font-bold px-2 py-1 rounded text-4xl ${
+                  analysisResult.grade === "A"
+                    ? "text-green-500"
+                    : analysisResult.grade === "B"
+                    ? "text-blue-500"
+                    : analysisResult.grade === "C"
+                    ? "text-yellow-500"
+                    : analysisResult.grade === "D"
+                    ? "text-orange-600"
+                    : analysisResult.grade === "E"
+                    ? "text-red-500"
+                    : "text-gray-500"
+                }`}
+              >
+                {analysisResult.skor_kebersihan}
+              </span>
             </div>
-          )}
+            <div className="flex flex-col justify-center items-center">
+              <span className="font-medium">Grade:</span>
+              <span
+                className={`font-bold px-2 py-1 rounded text-4xl ${
+                  analysisResult.grade === "A"
+                    ? "text-green-500"
+                    : analysisResult.grade === "B"
+                    ? "text-blue-500"
+                    : analysisResult.grade === "C"
+                    ? "text-yellow-500"
+                    : analysisResult.grade === "D"
+                    ? "text-orange-600"
+                    : analysisResult.grade === "E"
+                    ? "text-red-500"
+                    : "text-gray-500"
+                }`}
+              >
+                {analysisResult.grade}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Show similarity info if available */}
+        {analysisResult.imageSimilarity !== undefined && analysisResult.imageSimilarity !== null && (
+          <div className="mt-3 pt-2 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-600">
+                Kemiripan dengan report sebelumnya:
+              </span>
+              <span className={`text-xs font-bold ${
+                analysisResult.imageSimilarity >= 0.6 
+                  ? "text-green-600" 
+                  : "text-orange-600"
+              }`}>
+                {(analysisResult.imageSimilarity * 100).toFixed(1)}%
+              </span>
+            </div>
+            {analysisResult.previousReport && (
+              <div className="text-xs text-gray-500 mt-1">
+                Dibandingkan dengan report grade {analysisResult.previousReport.grade} 
+                (skor: {analysisResult.previousReport.score})
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Show sharing eligibility */}
+        {analysisResult.canShare !== undefined && (
+          <div className="mt-2">
+            {!analysisResult.canShare && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
+                <p className="text-orange-700 text-xs">
+                  {analysisResult.reason === 'grade_insufficient'
+                    ? "Hanya lokasi dengan grade A atau B yang dapat dibagikan sebagai update kondisi."
+                    : analysisResult.reason === 'similarity_too_low'
+                    ? "Gambar tidak cukup mirip dengan report sebelumnya di lokasi ini (minimal 60% similarity)."
+                    : "Tidak memenuhi syarat untuk dibagikan."
+                  }
+                </p>
+              </div>
+            )}
+            {analysisResult.canShare && (analysisResult.reason === 'no_previous_report' || analysisResult.reason === 'no_embedding_first_report') && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                <p className="text-blue-700 text-xs">
+                  {analysisResult.reason === 'no_previous_report' 
+                    ? "Ini akan menjadi report pertama untuk lokasi ini."
+                    : "Update diizinkan karena ini adalah report pertama dengan embedding."
+                  }
+                </p>
+              </div>
+            )}
+            {analysisResult.canShare && analysisResult.reason === 'valid' && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                <p className="text-green-700 text-xs">
+                  ✅ Memenuhi syarat: Grade {analysisResult.grade} dan similarity {analysisResult.imageSimilarity ? `${(analysisResult.imageSimilarity * 100).toFixed(1)}%` : 'N/A'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className={analysisResult.skor_kebersihan !== null && analysisResult.grade !== null ? "mt-3 pt-2 border-t border-gray-200" : ""}>
+          <p className="text-gray-600 leading-relaxed">
+            {analysisResult.deskripsi ?? "Tidak tersedia"}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
         </div>
 
         {/* Analysis/Share Button */}
         <div className="mt-4">
-          {analysisResult ? (
-            <Button
-              onClick={updateReport}
-              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-              disabled={isLoading}
-            >
-              {isLoading ? "Bagikan..." : "Bagikan Hasil Analisis"}  
-            </Button>
-          ) : (
-            <Button
-              onClick={handleAnalysis}
-              disabled={!selectedImage || isAnalyzing}
-              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-            >
-              {isAnalyzing ? "Menganalisis..." : "Analisis"}
-            </Button>
-          )}
+  {analysisResult ? (
+    <>
+      {analysisResult.canShare ? (
+        // Can share - show enabled button
+        <Button
+          onClick={updateReport}
+          className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
+          disabled={isLoading}
+        >
+          {isLoading ? "Memperbarui..." : "Perbarui Kondisi Lokasi"}  
+        </Button>
+      ) : (
+        // Cannot share - show disabled button and retry option
+        <div className="space-y-2">
+          <Button
+            disabled={true}
+            className="w-full bg-gray-400 text-gray-600 py-3 text-sm font-medium rounded-full cursor-not-allowed opacity-50"
+          >
+            Tidak Dapat Dibagikan
+          </Button>
+          <Button
+            onClick={() => {
+              removeImage();
+              setAnalysisResult(null);
+            }}
+            variant="outline"
+            className="w-full py-3 text-sm font-medium rounded-full"
+          >
+            Coba Gambar Lain
+          </Button>
+          <p className="text-center text-xs text-gray-500">
+            {analysisResult.reason === 'grade_insufficient'
+              ? "Grade minimal B diperlukan untuk memperbarui kondisi."
+              : analysisResult.reason === 'similarity_too_low'
+              ? "Gambar tidak cukup mirip dengan lokasi ini (minimal 60%)."
+              : "Tidak memenuhi syarat untuk dibagikan."
+            }
+          </p>
         </div>
+      )}
+    </>
+  ) : (
+    <Button
+      onClick={handleAnalysis}
+      disabled={!selectedImage || isAnalyzing}
+      className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
+    >
+      {isAnalyzing ? "Menganalisis..." : "Analisis"}
+    </Button>
+  )}
+</div>
 
         {/* Hidden canvas for photo capture */}
         <canvas ref={canvasRef} className="hidden" />
