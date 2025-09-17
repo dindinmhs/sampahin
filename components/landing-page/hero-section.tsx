@@ -109,7 +109,9 @@ const HeroSection: React.FC = () => {
               </Link>
 
               <Link
-                href="/map"
+                href="https://drive.google.com/file/d/1PPeE9lz5tMAHhyyFXkiyhRXpNZOsY76X/view?usp=drive_link"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-full border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 text-lg font-bold px-8 py-4 group"
               >
                 <Play className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
