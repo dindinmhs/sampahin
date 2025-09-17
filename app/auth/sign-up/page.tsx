@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
-import { Eye, EyeOff, Mail, Lock, User, MapPin } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 
 export default function Page() {
   const [nama, setNama] = useState("");
@@ -74,8 +74,14 @@ export default function Page() {
       <header className="relative z-10 flex items-center justify-between p-5">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/30 rotate-3 hover:rotate-0 transition-transform duration-300">
-              <MapPin className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/30 hover:scale-105 transition-transform duration-300">
+              <Image
+                src="/logo.png"
+                alt="Sampahin Logo"
+                width={48}
+                height={48}
+                className="w-full h-full object-contain"
+              />
             </div>
             <span className="text-3xl text-white font-medium">Sampahin</span>
           </div>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import {
-  MapPin,
+  Map,
   Users,
   CheckCircle,
   BarChart3,
@@ -68,7 +68,7 @@ const FeaturesSection: React.FC = () => {
 
   const features = [
     {
-      icon: <MapPin className="w-8 h-8 text-white" />,
+      icon: <Map className="w-8 h-8 text-white" />,
       title: "Pemetaan Interaktif",
       description:
         "Pelacakan lokasi real-time titik pengumpulan sampah dengan pembaruan status detail dan optimasi rute.",
