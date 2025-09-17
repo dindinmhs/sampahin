@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect } from "react";
-import { Camera, Upload, X } from "lucide-react";
+import { Camera, Upload, X, RotateCcw, Loader2 } from "lucide-react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
@@ -526,287 +526,321 @@ export const UpdateGradingForm = () => {
             <p className="text-sm text-gray-500">{location[0].address}</p>
             <h2 className="text-sm font-medium text-gray-700 mb-3 mt-6">Foto Lokasi untuk di grading</h2>
 
-            {/* Upload Options */}
-            <div className="flex gap-2 mb-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                disabled={isCapturing}
-              >
-                <Upload className="w-3 h-3" />
-                Pilih Foto
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={startCamera}
-                className="flex items-center gap-2 text-xs px-3 py-1.5 h-8 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                disabled={isCapturing}
-              >
-                <Camera className="w-3 h-3" />
-                Buka Kamera
-              </Button>
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
+            {/* Image Upload Section */}
+            {!isCapturing && !previewUrl && (
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50/50">
+                  <div className="space-y-4">
+                    <div className="mx-auto w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center">
+                      <Upload className="w-8 h-8 text-teal-600" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-medium text-slate-800 mb-2">
+                        Upload Foto Lokasi
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Pilih foto kondisi terkini lokasi untuk dinilai kebersihannya
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-teal-500 hover:bg-teal-600 text-white"
+                        disabled={isCapturing}
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Pilih dari Galeri
+                      </Button>
+                      <Button
+                        onClick={startCamera}
+                        variant="outline"
+                        className="border-teal-500 text-teal-500 hover:bg-teal-50"
+                        disabled={isCapturing}
+                      >
+                        <Camera className="w-4 h-4 mr-2" />
+                        Buka Kamera
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Camera Error */}
-          {cameraError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {cameraError}
-            </div>
-          )}
-
-          {/* Camera View */}
+          {/* Camera Section */}
           {isCapturing && (
-            <div className="mb-4">
+            <div className="space-y-4 mb-4">
               <div className="relative">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full aspect-video rounded-2xl border border-gray-200"
-                />
-                <div className="mt-3 flex gap-2 justify-center">
+                {cameraError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+                    <p className="text-red-800 mb-4">{cameraError}</p>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        onClick={startCamera}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        Coba Lagi
+                      </Button>
+                      <Button onClick={stopCamera} variant="outline">
+                        Batal
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative bg-black rounded-xl overflow-hidden">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-auto max-h-96 object-cover"
+                    />
+                    <div className="absolute top-4 right-4 flex gap-2">
+                      <Button
+                        onClick={toggleCamera}
+                        size="sm"
+                        variant="secondary"
+                        className="bg-white/80 hover:bg-white"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {!cameraError && (
+                <div className="flex gap-3 justify-center">
                   <Button
-                    type="button"
-                    onClick={toggleCamera}
-                    className="bg-gray-500 hover:bg-gray-600 text-white text-xs px-4 py-2 h-8 rounded-full"
-                  >
-                    Ganti Kamera
-                  </Button>
-                  <Button
-                    type="button"
                     onClick={capturePhoto}
-                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-4 py-2 h-8 rounded-full"
+                    className="bg-teal-500 hover:bg-teal-600 text-white"
                   >
+                    <Camera className="w-4 h-4 mr-2" />
                     Ambil Foto
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={stopCamera}
-                    className="text-xs px-4 py-2 h-8 rounded-full"
-                  >
+                  <Button onClick={stopCamera} variant="outline">
                     Batal
                   </Button>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* Image Preview */}
+          {/* Image Preview Section */}
           {previewUrl && !isCapturing && (
-            <div className="mb-4">
+            <div className="space-y-4 mb-4">
               <div className="relative">
                 <Image
                   src={previewUrl}
+                  alt="Preview"
                   width={400}
                   height={300}
-                  alt="Preview"
-                  className="w-full h-48 rounded-lg border border-gray-200 object-cover"
+                  className="w-full h-auto max-h-96 object-contain rounded-xl border border-slate-200"
                 />
                 <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
                   onClick={removeImage}
-                  className="absolute top-2 right-2 w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500 rounded-full"
+                  size="sm"
+                  variant="destructive"
+                  className="absolute top-2 right-2"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="text-center">
+                <Button
+                  onClick={handleAnalysis}
+                  disabled={isAnalyzing}
+                  className="bg-teal-500 hover:bg-teal-600 text-white px-8 py-3 text-lg"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Menganalisis...
+                    </>
+                  ) : (
+                    "Analisis Kebersihan"
+                  )}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Analysis Result */}
+          {/* Analysis Results */}
           {analysisResult && (
-  <div className="mb-4">
-    <h3 className="text-sm font-medium text-gray-800 mb-2">
-      Hasil Analisis AI
-    </h3>
-    <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
-      <div className="space-y-2">
-        {/* Only show score and grade if it's a valid grading result */}
-        {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
-          <div className="flex justify-start gap-8">
-            <div className="flex flex-col justify-center items-center">
-              <span className="font-medium">Skor Kebersihan:</span>
-              <span
-                className={`font-bold px-2 py-1 rounded text-4xl ${
-                  analysisResult.grade === "A"
-                    ? "text-green-500"
-                    : analysisResult.grade === "B"
-                    ? "text-blue-500"
-                    : analysisResult.grade === "C"
-                    ? "text-yellow-500"
-                    : analysisResult.grade === "D"
-                    ? "text-orange-600"
-                    : analysisResult.grade === "E"
-                    ? "text-red-500"
-                    : "text-gray-500"
-                }`}
-              >
-                {analysisResult.skor_kebersihan}
-              </span>
+            <div className="mb-4">
+              <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+                <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  📊 Hasil Penilaian
+                </h2>
+                
+                <div className="space-y-6">
+                  {/* Only show score and grade if it's a valid grading result */}
+                  {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border border-teal-200 text-center">
+                        <h4 className="font-semibold text-teal-800 mb-2">Skor Kebersihan</h4>
+                        <span
+                          className={`font-bold text-4xl ${
+                            analysisResult.grade === "A"
+                              ? "text-green-500"
+                              : analysisResult.grade === "B"
+                              ? "text-blue-500"
+                              : analysisResult.grade === "C"
+                              ? "text-yellow-500"
+                              : analysisResult.grade === "D"
+                              ? "text-orange-600"
+                              : analysisResult.grade === "E"
+                              ? "text-red-500"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {analysisResult.skor_kebersihan}
+                        </span>
+                      </div>
+                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 text-center">
+                        <h4 className="font-semibold text-purple-800 mb-2">Grade</h4>
+                        <span
+                          className={`font-bold text-4xl ${
+                            analysisResult.grade === "A"
+                              ? "text-green-500"
+                              : analysisResult.grade === "B"
+                              ? "text-blue-500"
+                              : analysisResult.grade === "C"
+                              ? "text-yellow-500"
+                              : analysisResult.grade === "D"
+                              ? "text-orange-600"
+                              : analysisResult.grade === "E"
+                              ? "text-red-500"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {analysisResult.grade}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show similarity info if available */}
+                  {analysisResult.imageSimilarity !== undefined && analysisResult.imageSimilarity !== null && (
+                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-4 border border-indigo-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-indigo-800">
+                          Kemiripan dengan report sebelumnya:
+                        </span>
+                        <span className={`font-bold text-lg ${
+                          analysisResult.imageSimilarity >= 0.6 
+                            ? "text-green-600" 
+                            : "text-orange-600"
+                        }`}>
+                          {(analysisResult.imageSimilarity * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      {analysisResult.previousReport && (
+                        <div className="text-sm text-indigo-600">
+                          Dibandingkan dengan report grade {analysisResult.previousReport.grade} 
+                          (skor: {analysisResult.previousReport.score})
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Show sharing eligibility */}
+                  {analysisResult.canShare !== undefined && (
+                    <div>
+                      {!analysisResult.canShare && (
+                        <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4">
+                          <p className="text-orange-700 text-sm font-medium">
+                            ⚠️ {analysisResult.reason === 'grade_insufficient'
+                              ? "Hanya lokasi dengan grade A atau B yang dapat dibagikan sebagai update kondisi."
+                              : analysisResult.reason === 'similarity_too_low'
+                              ? "Gambar tidak cukup mirip dengan report sebelumnya di lokasi ini (minimal 60% similarity)."
+                              : "Tidak memenuhi syarat untuk dibagikan."
+                            }
+                          </p>
+                        </div>
+                      )}
+                      {analysisResult.canShare && (analysisResult.reason === 'no_previous_report' || analysisResult.reason === 'no_embedding_first_report') && (
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                          <p className="text-blue-700 text-sm font-medium">
+                            ✅ {analysisResult.reason === 'no_previous_report' 
+                              ? "Ini akan menjadi report pertama untuk lokasi ini."
+                              : "Update diizinkan karena ini adalah report pertama dengan embedding."
+                            }
+                          </p>
+                        </div>
+                      )}
+                      {analysisResult.canShare && analysisResult.reason === 'valid' && (
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+                          <p className="text-green-700 text-sm font-medium">
+                            ✅ Memenuhi syarat: Grade {analysisResult.grade} dan similarity {analysisResult.imageSimilarity ? `${(analysisResult.imageSimilarity * 100).toFixed(1)}%` : 'N/A'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                    <h4 className="font-semibold text-slate-800 mb-3">Deskripsi AI</h4>
+                    <p className="text-slate-700 leading-relaxed">
+                      {analysisResult.deskripsi ?? "Tidak tersedia"}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-col justify-center items-center">
-              <span className="font-medium">Grade:</span>
-              <span
-                className={`font-bold px-2 py-1 rounded text-4xl ${
-                  analysisResult.grade === "A"
-                    ? "text-green-500"
-                    : analysisResult.grade === "B"
-                    ? "text-blue-500"
-                    : analysisResult.grade === "C"
-                    ? "text-yellow-500"
-                    : analysisResult.grade === "D"
-                    ? "text-orange-600"
-                    : analysisResult.grade === "E"
-                    ? "text-red-500"
-                    : "text-gray-500"
-                }`}
-              >
-                {analysisResult.grade}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Show similarity info if available */}
-        {analysisResult.imageSimilarity !== undefined && analysisResult.imageSimilarity !== null && (
-          <div className="mt-3 pt-2 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-600">
-                Kemiripan dengan report sebelumnya:
-              </span>
-              <span className={`text-xs font-bold ${
-                analysisResult.imageSimilarity >= 0.6 
-                  ? "text-green-600" 
-                  : "text-orange-600"
-              }`}>
-                {(analysisResult.imageSimilarity * 100).toFixed(1)}%
-              </span>
-            </div>
-            {analysisResult.previousReport && (
-              <div className="text-xs text-gray-500 mt-1">
-                Dibandingkan dengan report grade {analysisResult.previousReport.grade} 
-                (skor: {analysisResult.previousReport.score})
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Show sharing eligibility */}
-        {analysisResult.canShare !== undefined && (
-          <div className="mt-2">
-            {!analysisResult.canShare && (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
-                <p className="text-orange-700 text-xs">
-                  {analysisResult.reason === 'grade_insufficient'
-                    ? "Hanya lokasi dengan grade A atau B yang dapat dibagikan sebagai update kondisi."
-                    : analysisResult.reason === 'similarity_too_low'
-                    ? "Gambar tidak cukup mirip dengan report sebelumnya di lokasi ini (minimal 60% similarity)."
-                    : "Tidak memenuhi syarat untuk dibagikan."
-                  }
-                </p>
-              </div>
-            )}
-            {analysisResult.canShare && (analysisResult.reason === 'no_previous_report' || analysisResult.reason === 'no_embedding_first_report') && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                <p className="text-blue-700 text-xs">
-                  {analysisResult.reason === 'no_previous_report' 
-                    ? "Ini akan menjadi report pertama untuk lokasi ini."
-                    : "Update diizinkan karena ini adalah report pertama dengan embedding."
-                  }
-                </p>
-              </div>
-            )}
-            {analysisResult.canShare && analysisResult.reason === 'valid' && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-2">
-                <p className="text-green-700 text-xs">
-                  ✅ Memenuhi syarat: Grade {analysisResult.grade} dan similarity {analysisResult.imageSimilarity ? `${(analysisResult.imageSimilarity * 100).toFixed(1)}%` : 'N/A'}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className={analysisResult.skor_kebersihan !== null && analysisResult.grade !== null ? "mt-3 pt-2 border-t border-gray-200" : ""}>
-          <p className="text-gray-600 leading-relaxed">
-            {analysisResult.deskripsi ?? "Tidak tersedia"}
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+          )}
         </div>
 
-        {/* Analysis/Share Button */}
-        <div className="mt-4">
-  {analysisResult ? (
-    <>
-      {analysisResult.canShare ? (
-        // Can share - show enabled button
-        <Button
-          onClick={updateReport}
-          className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-          disabled={isLoading}
-        >
-          {isLoading ? "Memperbarui..." : "Perbarui Kondisi Lokasi"}  
-        </Button>
-      ) : (
-        // Cannot share - show disabled button and retry option
-        <div className="space-y-2">
-          <Button
-            disabled={true}
-            className="w-full bg-gray-400 text-gray-600 py-3 text-sm font-medium rounded-full cursor-not-allowed opacity-50"
-          >
-            Tidak Dapat Dibagikan
-          </Button>
-          <Button
-            onClick={() => {
-              removeImage();
-              setAnalysisResult(null);
-            }}
-            variant="outline"
-            className="w-full py-3 text-sm font-medium rounded-full"
-          >
-            Coba Gambar Lain
-          </Button>
-          <p className="text-center text-xs text-gray-500">
-            {analysisResult.reason === 'grade_insufficient'
-              ? "Grade minimal B diperlukan untuk memperbarui kondisi."
-              : analysisResult.reason === 'similarity_too_low'
-              ? "Gambar tidak cukup mirip dengan lokasi ini (minimal 60%)."
-              : "Tidak memenuhi syarat untuk dibagikan."
-            }
-          </p>
+        {/* Action Buttons */}
+        <div className="mt-6">
+          {analysisResult ? (
+            <>
+              {analysisResult.canShare ? (
+                // Can share - show enabled button
+                <Button
+                  onClick={updateReport}
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-lg font-medium rounded-xl"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Memperbarui..." : "Perbarui Kondisi Lokasi"}  
+                </Button>
+              ) : (
+                // Cannot share - show disabled button and retry option
+                <div className="space-y-3">
+                  <Button
+                    disabled={true}
+                    className="w-full bg-gray-400 text-gray-600 py-3 text-lg font-medium rounded-xl cursor-not-allowed opacity-50"
+                  >
+                    Tidak Dapat Dibagikan
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      removeImage();
+                      setAnalysisResult(null);
+                    }}
+                    variant="outline"
+                    className="w-full py-3 text-lg font-medium rounded-xl"
+                  >
+                    Coba Gambar Lain
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            // No analysis result yet - this should not appear since analysis is triggered from preview section
+            !previewUrl && (
+              <div className="text-center text-gray-500 text-sm">
+                Pilih atau ambil foto untuk mulai analisis
+              </div>
+            )
+          )}
         </div>
-      )}
-    </>
-  ) : (
-    <Button
-      onClick={handleAnalysis}
-      disabled={!selectedImage || isAnalyzing}
-      className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-sm font-medium rounded-full"
-    >
-      {isAnalyzing ? "Menganalisis..." : "Analisis"}
-    </Button>
-  )}
-</div>
 
         {/* Hidden canvas for photo capture */}
         <canvas ref={canvasRef} className="hidden" />
