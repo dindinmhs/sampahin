@@ -8,32 +8,83 @@ import { useUserStore } from "@/lib/store/user-store";
 import { createClient } from "@/lib/supabase/client";
 import { KreasiCards } from "./kreasi-cards";
 import { BasicAnalysis, CreativeArticle, AnalysisResponse } from "@/types/scan";
+import {
+  validateAndCompressImage,
+  fileToBase64,
+  formatFileSize,
+} from "@/lib/utils/image-compression";
 
 export const ScanForm = () => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [basicAnalysis, setBasicAnalysis] = useState<BasicAnalysis | null>(null);
-  const [kreatiArticles, setKreatiArticles] = useState<CreativeArticle[] | null>(null);
+  const [basicAnalysis, setBasicAnalysis] = useState<BasicAnalysis | null>(
+    null
+  );
+  const [kreatiArticles, setKreatiArticles] = useState<
+    CreativeArticle[] | null
+  >(null);
   const [isNotTrash, setIsNotTrash] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
-  
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+    "environment"
+  );
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionMessage, setCompressionMessage] = useState<string | null>(
+    null
+  );
+  const [fileError, setFileError] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const user = useUserStore((state) => state.user);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      const url = URL.createObjectURL(file);
+    if (!file) return;
+
+    // Reset states
+    resetAnalysisStates();
+    setFileError(null);
+    setCompressionMessage(null);
+    setIsCompressing(true);
+
+    try {
+      // Validate and compress if needed
+      const result = await validateAndCompressImage(file);
+
+      if (!result.valid) {
+        setFileError(result.message || "File tidak valid");
+        setIsCompressing(false);
+        return;
+      }
+
+      // Use compressed file if available, otherwise use original
+      const finalFile = result.compressed || file;
+      setSelectedImage(finalFile);
+
+      // Set compression message if file was compressed
+      if (result.compressed) {
+        setCompressionMessage(
+          result.message ||
+            `Gambar dikompres ke ${formatFileSize(finalFile.size)}`
+        );
+      }
+
+      // Create preview URL
+      const url = URL.createObjectURL(finalFile);
       setPreviewUrl(url);
-      resetAnalysisStates();
+    } catch (error) {
+      console.error("Error processing file:", error);
+      setFileError("Gagal memproses gambar. Silakan coba lagi.");
+    } finally {
+      setIsCompressing(false);
     }
   };
 
@@ -43,15 +94,19 @@ export const ScanForm = () => {
     setKreatiArticles(null);
     setIsNotTrash(false);
     setIsGeneratingImages(false);
+    setFileError(null);
+    setCompressionMessage(null);
   };
 
-  const generateKreasiImages = async (articles: CreativeArticle[]): Promise<CreativeArticle[]> => {
+  const generateKreasiImages = async (
+    articles: CreativeArticle[]
+  ): Promise<CreativeArticle[]> => {
     try {
       setIsGeneratingImages(true);
-      
+
       // Extract all titles from articles
-      const titles = articles.map(article => article.title);
-      
+      const titles = articles.map((article) => article.title);
+
       // Send titles to Nano Banana for image generation
       const res = await fetch("/api/generate-images", {
         method: "POST",
@@ -64,18 +119,18 @@ export const ScanForm = () => {
       }
 
       const imageData = await res.json();
-      
+
       // Update articles with generated images
       if (imageData.images && Array.isArray(imageData.images)) {
         return articles.map((article, index) => {
           const imageResult = imageData.images[index];
           return {
             ...article,
-            imageUrl: imageResult?.success ? imageResult.imageUrl : null
+            imageUrl: imageResult?.success ? imageResult.imageUrl : null,
           };
         });
       }
-      
+
       return articles;
     } catch (error) {
       console.error("Error generating images with Gemini:", error);
@@ -114,7 +169,9 @@ export const ScanForm = () => {
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      setCameraError("Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser.");
+      setCameraError(
+        "Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser."
+      );
       setIsCapturing(false);
     }
   };
@@ -155,7 +212,7 @@ export const ScanForm = () => {
     }
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -167,16 +224,46 @@ export const ScanForm = () => {
         context.drawImage(video, 0, 0);
 
         canvas.toBlob(
-          (blob) => {
+          async (blob) => {
             if (blob) {
               const file = new File([blob], "camera-photo.jpg", {
                 type: "image/jpeg",
               });
-              setSelectedImage(file);
-              const url = URL.createObjectURL(file);
-              setPreviewUrl(url);
-              stopCamera();
+
+              // Reset states and show processing
               resetAnalysisStates();
+              setIsCompressing(true);
+
+              try {
+                // Validate and compress if needed
+                const result = await validateAndCompressImage(file);
+
+                if (!result.valid) {
+                  setFileError(result.message || "Gagal memproses foto");
+                  setIsCompressing(false);
+                  return;
+                }
+
+                // Use compressed file if available
+                const finalFile = result.compressed || file;
+                setSelectedImage(finalFile);
+
+                if (result.compressed) {
+                  setCompressionMessage(
+                    result.message ||
+                      `Foto dikompres ke ${formatFileSize(finalFile.size)}`
+                  );
+                }
+
+                const url = URL.createObjectURL(finalFile);
+                setPreviewUrl(url);
+                stopCamera();
+              } catch (error) {
+                console.error("Error processing camera photo:", error);
+                setFileError("Gagal memproses foto. Silakan coba lagi.");
+              } finally {
+                setIsCompressing(false);
+              }
             }
           },
           "image/jpeg",
@@ -218,18 +305,7 @@ export const ScanForm = () => {
     resetAnalysisStates();
 
     try {
-      const toBase64 = (file: File): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]);
-          };
-          reader.onerror = (error) => reject(error);
-        });
-
-      const base64Image = await toBase64(selectedImage);
+      const base64Image = await fileToBase64(selectedImage);
 
       const res = await fetch("/api/analisis", {
         method: "POST",
@@ -259,10 +335,12 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
         setAnalysisResult(analysisText);
         setIsNotTrash(data.isNotTrash || false);
         setBasicAnalysis(data.basicAnalysis || null);
-        
+
         // Generate images with Gemini before setting the articles
         console.log("🖼️ Generating images with Gemini...");
-        const processedArticles = await generateKreasiImages(data.kreatiArticles);
+        const processedArticles = await generateKreasiImages(
+          data.kreatiArticles
+        );
         setKreatiArticles(processedArticles);
 
         console.log("📚 Kreasi Articles processed and set successfully!");
@@ -271,11 +349,13 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
         setAnalysisResult(data.result);
         setIsNotTrash(data.isNotTrash || false);
         setBasicAnalysis(data.basicAnalysis || null);
-        
+
         // If we have kreatiArticles, generate images for them too
         if (data.kreatiArticles) {
           console.log("🖼️ Generating images with Gemini...");
-          const processedArticles = await generateKreasiImages(data.kreatiArticles);
+          const processedArticles = await generateKreasiImages(
+            data.kreatiArticles
+          );
           setKreatiArticles(processedArticles);
         } else {
           setKreatiArticles(null);
@@ -307,23 +387,23 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
       setIsNotTrash(false);
     } finally {
       setIsAnalyzing(false);
-      
+
       // Handle mission completion
       const fetchMissions = async () => {
         const supabase = createClient();
         if (!user?.id) return;
-        
+
         const { data, error } = await supabase
           .from("daily_missions_with_status")
           .select("*")
           .eq(`user_id`, user.id)
           .eq("mission_id", "b2d3dba2-ef1b-4396-b098-47524b407709")
           .order("point_reward", { ascending: true });
-          
+
         if (error) {
           console.error("Error fetching missions:", error);
         }
-        
+
         if (data?.length == 0) {
           // Handle mission completion logic here
         }
@@ -379,12 +459,47 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
                       Buka Kamera
                     </Button>
                   </div>
+
+                  {/* File Processing Feedback */}
+                  {isCompressing && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        <p className="text-sm text-blue-800">
+                          Memproses gambar...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {compressionMessage && (
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-800 text-center">
+                        ✅ {compressionMessage}
+                      </p>
+                    </div>
+                  )}
+
+                  {fileError && (
+                    <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                      <p className="text-sm text-red-800 text-center">
+                        ❌ {fileError}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <p className="text-xs text-slate-500 text-center">
+                      Format: JPEG, PNG, WebP • Auto-compress diatas 3MB •
+                      Maksimal upload: 50MB
+                    </p>
+                  </div>
                 </div>
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -501,7 +616,7 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
               <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                 🔬 Hasil Analisis
               </h2>
-              
+
               {isNotTrash ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
                   <div className="text-6xl mb-4">🤔</div>
@@ -509,7 +624,7 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
                     Objek Bukan Sampah
                   </h3>
                   <p className="text-yellow-700">
-                    Objek yang difoto sepertinya bukan sampah atau limbah. 
+                    Objek yang difoto sepertinya bukan sampah atau limbah.
                     Silakan foto objek sampah yang ingin dianalisis.
                   </p>
                 </div>
@@ -518,20 +633,32 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
                   {basicAnalysis && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
-                        <h4 className="font-semibold text-blue-800 mb-2">Nama Objek</h4>
-                        <p className="text-blue-700">{basicAnalysis.namaObjek}</p>
+                        <h4 className="font-semibold text-blue-800 mb-2">
+                          Nama Objek
+                        </h4>
+                        <p className="text-blue-700">
+                          {basicAnalysis.namaObjek}
+                        </p>
                       </div>
                       <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
-                        <h4 className="font-semibold text-purple-800 mb-2">Kategori</h4>
-                        <p className="text-purple-700">{basicAnalysis.kategori}</p>
+                        <h4 className="font-semibold text-purple-800 mb-2">
+                          Kategori
+                        </h4>
+                        <p className="text-purple-700">
+                          {basicAnalysis.kategori}
+                        </p>
                       </div>
                       <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200">
-                        <h4 className="font-semibold text-orange-800 mb-2">Status Bahaya</h4>
-                        <p className="text-orange-700">{basicAnalysis.statusBahaya}</p>
+                        <h4 className="font-semibold text-orange-800 mb-2">
+                          Status Bahaya
+                        </h4>
+                        <p className="text-orange-700">
+                          {basicAnalysis.statusBahaya}
+                        </p>
                       </div>
                     </div>
                   )}
-                  
+
                   {!basicAnalysis && (
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
                       <pre className="text-slate-800 whitespace-pre-wrap text-sm">
@@ -546,12 +673,15 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
         )}
 
         {/* Kreasi Articles */}
-        {!isNotTrash && !isGeneratingImages && kreatiArticles && kreatiArticles.length > 0 && (
-          <KreasiCards
-            articles={kreatiArticles}
-            wasteObject={basicAnalysis?.namaObjek}
-          />
-        )}
+        {!isNotTrash &&
+          !isGeneratingImages &&
+          kreatiArticles &&
+          kreatiArticles.length > 0 && (
+            <KreasiCards
+              articles={kreatiArticles}
+              wasteObject={basicAnalysis?.namaObjek}
+            />
+          )}
 
         {/* Generating Images State */}
         {isGeneratingImages && (
@@ -560,7 +690,9 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
               <div className="bg-emerald-600 text-white p-6">
                 <div className="text-center">
                   <h3 className="text-xl font-bold">Kreasi DIY</h3>
-                  <p className="text-emerald-100 text-sm mt-1">Sedang membuat gambar dengan Gemini AI</p>
+                  <p className="text-emerald-100 text-sm mt-1">
+                    Sedang membuat gambar dengan Gemini AI
+                  </p>
                 </div>
               </div>
               <div className="p-8 text-center">
@@ -569,7 +701,8 @@ Status bahaya: ${data.basicAnalysis.statusBahaya}`;
                   Membuat gambar kreasi...
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  Gemini sedang membuat gambar menarik untuk setiap ide kreasi Anda
+                  Gemini sedang membuat gambar menarik untuk setiap ide kreasi
+                  Anda
                 </p>
               </div>
             </div>

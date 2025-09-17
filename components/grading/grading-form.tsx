@@ -11,6 +11,11 @@ import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { mimeToExt } from "@/lib/utils";
 import { useUserStore } from "@/lib/store/user-store";
+import {
+  validateAndCompressImage,
+  fileToBase64,
+  formatFileSize,
+} from "@/lib/utils/image-compression";
 
 const CoordinatePicker = dynamic(() => import("../common/coordinat-picker"), {
   ssr: false,
@@ -29,7 +34,14 @@ export const GradingForm = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [open, setOpen] = useState(false);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+    "environment"
+  );
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionMessage, setCompressionMessage] = useState<string | null>(
+    null
+  );
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const [analysisResult, setAnalysisResult] =
     useState<AnalysisResultProps | null>(null);
@@ -38,13 +50,48 @@ export const GradingForm = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      const url = URL.createObjectURL(file);
+    if (!file) return;
+
+    // Reset states
+    setAnalysisResult(null);
+    setFileError(null);
+    setCompressionMessage(null);
+    setIsCompressing(true);
+
+    try {
+      // Validate and compress if needed
+      const result = await validateAndCompressImage(file);
+
+      if (!result.valid) {
+        setFileError(result.message || "File tidak valid");
+        setIsCompressing(false);
+        return;
+      }
+
+      // Use compressed file if available, otherwise use original
+      const finalFile = result.compressed || file;
+      setSelectedImage(finalFile);
+
+      // Set compression message if file was compressed
+      if (result.compressed) {
+        setCompressionMessage(
+          result.message ||
+            `Gambar dikompres ke ${formatFileSize(finalFile.size)}`
+        );
+      }
+
+      // Create preview URL
+      const url = URL.createObjectURL(finalFile);
       setPreviewUrl(url);
-      setAnalysisResult(null);
+    } catch (error) {
+      console.error("Error processing file:", error);
+      setFileError("Gagal memproses gambar. Silakan coba lagi.");
+    } finally {
+      setIsCompressing(false);
     }
   };
 
@@ -77,7 +124,9 @@ export const GradingForm = () => {
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      setCameraError("Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser.");
+      setCameraError(
+        "Tidak dapat mengakses kamera. Silakan periksa izin kamera di browser."
+      );
       setIsCapturing(false);
     }
   };
@@ -118,7 +167,7 @@ export const GradingForm = () => {
     }
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -130,16 +179,48 @@ export const GradingForm = () => {
         context.drawImage(video, 0, 0);
 
         canvas.toBlob(
-          (blob) => {
+          async (blob) => {
             if (blob) {
               const file = new File([blob], "camera-photo.jpg", {
                 type: "image/jpeg",
               });
-              setSelectedImage(file);
-              const url = URL.createObjectURL(file);
-              setPreviewUrl(url);
-              stopCamera();
+
+              // Reset states and show processing
               setAnalysisResult(null);
+              setFileError(null);
+              setCompressionMessage(null);
+              setIsCompressing(true);
+
+              try {
+                // Validate and compress if needed
+                const result = await validateAndCompressImage(file);
+
+                if (!result.valid) {
+                  setFileError(result.message || "Gagal memproses foto");
+                  setIsCompressing(false);
+                  return;
+                }
+
+                // Use compressed file if available
+                const finalFile = result.compressed || file;
+                setSelectedImage(finalFile);
+
+                if (result.compressed) {
+                  setCompressionMessage(
+                    result.message ||
+                      `Foto dikompres ke ${formatFileSize(finalFile.size)}`
+                  );
+                }
+
+                const url = URL.createObjectURL(finalFile);
+                setPreviewUrl(url);
+                stopCamera();
+              } catch (error) {
+                console.error("Error processing camera photo:", error);
+                setFileError("Gagal memproses foto. Silakan coba lagi.");
+              } finally {
+                setIsCompressing(false);
+              }
             }
           },
           "image/jpeg",
@@ -181,18 +262,7 @@ export const GradingForm = () => {
     setAnalysisResult(null);
 
     try {
-      const toBase64 = (file: File): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            const base64 = (reader.result as string).split(",")[1];
-            resolve(base64);
-          };
-          reader.onerror = (error) => reject(error);
-        });
-
-      const base64Image = await toBase64(selectedImage);
+      const base64Image = await fileToBase64(selectedImage);
 
       const res = await fetch("/api/grading", {
         method: "POST",
@@ -274,12 +344,47 @@ export const GradingForm = () => {
                       Buka Kamera
                     </Button>
                   </div>
+
+                  {/* File Processing Feedback */}
+                  {isCompressing && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        <p className="text-sm text-blue-800">
+                          Memproses gambar...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {compressionMessage && (
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-800 text-center">
+                        ✅ {compressionMessage}
+                      </p>
+                    </div>
+                  )}
+
+                  {fileError && (
+                    <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                      <p className="text-sm text-red-800 text-center">
+                        ❌ {fileError}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <p className="text-xs text-slate-500 text-center">
+                      Format: JPEG, PNG, WebP • Auto-compress diatas 3MB •
+                      Maksimal upload: 50MB
+                    </p>
+                  </div>
                 </div>
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -391,55 +496,62 @@ export const GradingForm = () => {
               <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                 📊 Hasil Penilaian
               </h2>
-              
+
               <div className="space-y-6">
-                {analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border border-teal-200 text-center">
-                      <h4 className="font-semibold text-teal-800 mb-2">Skor Kebersihan</h4>
-                      <span
-                        className={`font-bold text-4xl ${
-                          analysisResult.grade === "A"
-                            ? "text-green-500"
-                            : analysisResult.grade === "B"
-                            ? "text-blue-500"
-                            : analysisResult.grade === "C"
-                            ? "text-yellow-500"
-                            : analysisResult.grade === "D"
-                            ? "text-orange-600"
-                            : analysisResult.grade === "E"
-                            ? "text-red-500"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {analysisResult.skor_kebersihan}
-                      </span>
+                {analysisResult.skor_kebersihan !== null &&
+                  analysisResult.grade !== null && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border border-teal-200 text-center">
+                        <h4 className="font-semibold text-teal-800 mb-2">
+                          Skor Kebersihan
+                        </h4>
+                        <span
+                          className={`font-bold text-4xl ${
+                            analysisResult.grade === "A"
+                              ? "text-green-500"
+                              : analysisResult.grade === "B"
+                              ? "text-blue-500"
+                              : analysisResult.grade === "C"
+                              ? "text-yellow-500"
+                              : analysisResult.grade === "D"
+                              ? "text-orange-600"
+                              : analysisResult.grade === "E"
+                              ? "text-red-500"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {analysisResult.skor_kebersihan}
+                        </span>
+                      </div>
+                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 text-center">
+                        <h4 className="font-semibold text-purple-800 mb-2">
+                          Grade
+                        </h4>
+                        <span
+                          className={`font-bold text-4xl ${
+                            analysisResult.grade === "A"
+                              ? "text-green-500"
+                              : analysisResult.grade === "B"
+                              ? "text-blue-500"
+                              : analysisResult.grade === "C"
+                              ? "text-yellow-500"
+                              : analysisResult.grade === "D"
+                              ? "text-orange-600"
+                              : analysisResult.grade === "E"
+                              ? "text-red-500"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {analysisResult.grade}
+                        </span>
+                      </div>
                     </div>
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200 text-center">
-                      <h4 className="font-semibold text-purple-800 mb-2">Grade</h4>
-                      <span
-                        className={`font-bold text-4xl ${
-                          analysisResult.grade === "A"
-                            ? "text-green-500"
-                            : analysisResult.grade === "B"
-                            ? "text-blue-500"
-                            : analysisResult.grade === "C"
-                            ? "text-yellow-500"
-                            : analysisResult.grade === "D"
-                            ? "text-orange-600"
-                            : analysisResult.grade === "E"
-                            ? "text-red-500"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {analysisResult.grade}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                
+                  )}
+
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
-                  <h4 className="font-semibold text-slate-800 mb-3">Deskripsi</h4>
+                  <h4 className="font-semibold text-slate-800 mb-3">
+                    Deskripsi
+                  </h4>
                   <p className="text-slate-700 leading-relaxed">
                     {analysisResult.deskripsi ?? "Tidak tersedia"}
                   </p>
@@ -450,45 +562,52 @@ export const GradingForm = () => {
         )}
 
         {/* Share Button */}
-        {analysisResult && analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
-          <div className="mt-6">
-            <Button
-              onClick={() => setOpen(true)}
-              className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-lg font-medium rounded-xl"
-            >
-              Bagikan Hasil
-            </Button>
-          </div>
-        )}
+        {analysisResult &&
+          analysisResult.skor_kebersihan !== null &&
+          analysisResult.grade !== null && (
+            <div className="mt-6">
+              <Button
+                onClick={() => setOpen(true)}
+                className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 text-lg font-medium rounded-xl"
+              >
+                Bagikan Hasil
+              </Button>
+            </div>
+          )}
 
         {/* Try Again Button for Non-Grading Images */}
-        {analysisResult && (analysisResult.skor_kebersihan === null || analysisResult.grade === null) && (
-          <div className="mt-6 text-center">
-            <Button
-              onClick={() => {
-                removeImage();
-                setAnalysisResult(null);
-              }}
-              variant="outline"
-              className="w-full py-3 text-lg font-medium rounded-xl"
-            >
-              Coba Gambar Lain
-            </Button>
-          </div>
-        )}
+        {analysisResult &&
+          (analysisResult.skor_kebersihan === null ||
+            analysisResult.grade === null) && (
+            <div className="mt-6 text-center">
+              <Button
+                onClick={() => {
+                  removeImage();
+                  setAnalysisResult(null);
+                }}
+                variant="outline"
+                className="w-full py-3 text-lg font-medium rounded-xl"
+              >
+                Coba Gambar Lain
+              </Button>
+            </div>
+          )}
 
         {/* Hidden Canvas */}
         <canvas ref={canvasRef} className="hidden" />
 
         {/* Share Modal */}
-        {selectedImage && analysisResult && analysisResult.skor_kebersihan !== null && analysisResult.grade !== null && (
-          <GradeShareForm
-            selectedImage={selectedImage}
-            analysis_result={analysisResult}
-            open={open}
-            setOpen={setOpen}
-          />
-        )}
+        {selectedImage &&
+          analysisResult &&
+          analysisResult.skor_kebersihan !== null &&
+          analysisResult.grade !== null && (
+            <GradeShareForm
+              selectedImage={selectedImage}
+              analysis_result={analysisResult}
+              open={open}
+              setOpen={setOpen}
+            />
+          )}
       </div>
     </div>
   );
@@ -538,61 +657,64 @@ const GradeShareForm = ({
     setIsLoadingAddress(true);
     try {
       // Menggunakan API route internal untuk menghindari CORS
-      const response = await fetch(
-        `/api/geocoding?lat=${lat}&lon=${lon}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-      
+      const response = await fetch(`/api/geocoding?lat=${lat}&lon=${lon}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch address');
+        throw new Error("Failed to fetch address");
       }
-      
+
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
-      
+
       // Ambil alamat dari display_name untuk kolom address
-      let city = '';
-      let province = '';
-      let country = '';
-      
+      let city = "";
+      let province = "";
+      let country = "";
+
       // Extract city, province, country dari address details
       if (data.address) {
-        city = data.address.city || data.address.town || data.address.municipality || '';
-        province = data.address.state || '';
-        country = data.address.country || '';
+        city =
+          data.address.city ||
+          data.address.town ||
+          data.address.municipality ||
+          "";
+        province = data.address.state || "";
+        country = data.address.country || "";
       }
-      
+
       // Update form dengan alamat yang didapat
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
-        alamat: data.display_name || 'Alamat tidak ditemukan',
+        alamat: data.display_name || "Alamat tidak ditemukan",
         city: city,
         province: province,
-        country: country
+        country: country,
       }));
-      
     } catch (error) {
-      console.error('Error getting address:', error);
-      
+      console.error("Error getting address:", error);
+
       // Lebih spesifik error handling
       if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          console.error('Koneksi internet bermasalah.');
-        } else if (error.message.includes('rate limit') || error.message.includes('403')) {
-          console.error('Terlalu banyak permintaan geocoding.');
+        if (error.message.includes("Failed to fetch")) {
+          console.error("Koneksi internet bermasalah.");
+        } else if (
+          error.message.includes("rate limit") ||
+          error.message.includes("403")
+        ) {
+          console.error("Terlalu banyak permintaan geocoding.");
         } else {
-          console.error('Gagal mendapatkan alamat dari koordinat.');
+          console.error("Gagal mendapatkan alamat dari koordinat.");
         }
       } else {
-        console.error('Gagal mendapatkan alamat dari koordinat.');
+        console.error("Gagal mendapatkan alamat dari koordinat.");
       }
     } finally {
       setIsLoadingAddress(false);
@@ -601,8 +723,8 @@ const GradeShareForm = ({
 
   // Handler untuk update koordinat dan auto-fill alamat
   const handleCoordinateChange = (newCoord: [number, number]) => {
-    setForm(prev => ({ ...prev, coord: newCoord }));
-    
+    setForm((prev) => ({ ...prev, coord: newCoord }));
+
     // Auto-fill alamat dari koordinat baru
     getAddressFromCoordinates(newCoord[0], newCoord[1]);
   };
@@ -610,7 +732,7 @@ const GradeShareForm = ({
   // Fungsi untuk mendapatkan lokasi saat ini
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation tidak didukung di browser ini.');
+      alert("Geolocation tidak didukung di browser ini.");
       return;
     }
 
@@ -618,71 +740,63 @@ const GradeShareForm = ({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        
+
         const newCoord: [number, number] = [latitude, longitude];
-        setForm(prev => ({ ...prev, coord: newCoord }));
-        
+        setForm((prev) => ({ ...prev, coord: newCoord }));
+
         // Auto-fill alamat dari lokasi saat ini
         getAddressFromCoordinates(latitude, longitude);
       },
       (error) => {
-        console.error('Error getting current location:', error);
+        console.error("Error getting current location:", error);
         setIsLoadingAddress(false);
-        alert('Gagal mendapatkan lokasi saat ini. Pastikan izin lokasi telah diberikan.');
+        alert(
+          "Gagal mendapatkan lokasi saat ini. Pastikan izin lokasi telah diberikan."
+        );
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0
+        maximumAge: 0,
       }
     );
   };
 
   const generateEmbeddings = async (
-    text: string, 
+    text: string,
     imageBase64: string
-  ): Promise<{ textEmbedding: number[] | null; imageEmbedding: number[] | null }> => {
+  ): Promise<{
+    textEmbedding: number[] | null;
+    imageEmbedding: number[] | null;
+  }> => {
     try {
-      const response = await fetch('/api/embeddings', {
-        method: 'POST',
+      const response = await fetch("/api/embeddings", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           text: text,
-          imageBase64: imageBase64
+          imageBase64: imageBase64,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate embeddings');
+        throw new Error("Failed to generate embeddings");
       }
 
       const data = await response.json();
       return {
         textEmbedding: data.textEmbedding,
-        imageEmbedding: data.imageEmbedding
+        imageEmbedding: data.imageEmbedding,
       };
     } catch (error) {
-      console.error('Error generating embeddings:', error);
+      console.error("Error generating embeddings:", error);
       return {
         textEmbedding: null,
-        imageEmbedding: null
+        imageEmbedding: null,
       };
     }
-  };
-
-  // Convert file to base64
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = (error) => reject(error);
-    });
   };
 
   // Submit function
@@ -692,7 +806,7 @@ const GradeShareForm = ({
       alert("Nama harus diisi!");
       return;
     }
-    
+
     if (!form.alamat.trim()) {
       alert("Alamat harus diisi!");
       return;
@@ -718,11 +832,11 @@ const GradeShareForm = ({
       } = await supabase.storage.from("sampahin").getPublicUrl(filePath);
 
       // Tentukan tipe berdasarkan grade
-      const locationType = 
+      const locationType =
         analysis_result?.grade === "A" || analysis_result?.grade === "B"
           ? "clean"
           : "dirty";
-          
+
       const locationRes = await supabase
         .from("locations")
         .insert([
@@ -745,13 +859,13 @@ const GradeShareForm = ({
       const embeddingText = `
         Lokasi: ${form.nama}
         Alamat: ${form.alamat}
-        Kota: ${form.city || 'Tidak diketahui'}
-        Provinsi: ${form.province || 'Tidak diketahui'}
-        Negara: ${form.country || 'Tidak diketahui'}
+        Kota: ${form.city || "Tidak diketahui"}
+        Provinsi: ${form.province || "Tidak diketahui"}
+        Negara: ${form.country || "Tidak diketahui"}
         Skor Kebersihan: ${analysis_result?.skor_kebersihan || 0}
-        Grade: ${analysis_result?.grade || 'N/A'}
+        Grade: ${analysis_result?.grade || "N/A"}
         Tipe Lokasi: ${locationType}
-        Deskripsi AI: ${analysis_result?.deskripsi || 'Tidak ada deskripsi'}
+        Deskripsi AI: ${analysis_result?.deskripsi || "Tidak ada deskripsi"}
         Koordinat: ${form.coord[0]}, ${form.coord[1]}
       `.trim();
 
@@ -759,14 +873,20 @@ const GradeShareForm = ({
       const imageBase64 = await fileToBase64(selectedImage);
 
       // Generate embeddings
-      console.log('Generating embeddings...');
+      console.log("Generating embeddings...");
       const { textEmbedding, imageEmbedding } = await generateEmbeddings(
-        embeddingText, 
+        embeddingText,
         imageBase64
       );
 
-      console.log('Text embedding generated:', textEmbedding ? 'Success' : 'Failed');
-      console.log('Image embedding generated:', imageEmbedding ? 'Success' : 'Failed');
+      console.log(
+        "Text embedding generated:",
+        textEmbedding ? "Success" : "Failed"
+      );
+      console.log(
+        "Image embedding generated:",
+        imageEmbedding ? "Success" : "Failed"
+      );
 
       const cleanlinessRes = await supabase
         .from("cleanliness_reports")
@@ -784,9 +904,9 @@ const GradeShareForm = ({
         .select();
 
       if (cleanlinessRes.error) throw cleanlinessRes.error;
-      
+
       if (cleanlinessRes.data) {
-        console.log('Data saved successfully with embeddings');
+        console.log("Data saved successfully with embeddings");
         setOpen(false);
         // Redirect ke /map setelah berhasil submit
         window.location.href = "/map";
@@ -797,27 +917,29 @@ const GradeShareForm = ({
     } finally {
       setLoading(false);
       const fetchMissions = async () => {
-      const supabase = createClient();
-      if (!user?.id) return;
-      const { data, error } = await supabase
-        .from("daily_missions_with_status")
-        .select("*")
-        .eq(`user_id`, user.id)
-        .eq('mission_id', '0e77a8e0-3309-46f2-b3b3-e2d77820429a')
-        .order("point_reward", { ascending: true });
-      if (error) {
-        console.error("Error fetching missions:", error.message);
-      }
-      if (data?.length == 0) {
-        await supabase
-          .from('user_mission_logs')
-          .insert([
-            { user_id: user.id, mission_id: '0e77a8e0-3309-46f2-b3b3-e2d77820429a', completed_at : new Date().toISOString(), point_earned:10},
-          ])
-      }
-
-    };
-    fetchMissions()
+        const supabase = createClient();
+        if (!user?.id) return;
+        const { data, error } = await supabase
+          .from("daily_missions_with_status")
+          .select("*")
+          .eq(`user_id`, user.id)
+          .eq("mission_id", "0e77a8e0-3309-46f2-b3b3-e2d77820429a")
+          .order("point_reward", { ascending: true });
+        if (error) {
+          console.error("Error fetching missions:", error.message);
+        }
+        if (data?.length == 0) {
+          await supabase.from("user_mission_logs").insert([
+            {
+              user_id: user.id,
+              mission_id: "0e77a8e0-3309-46f2-b3b3-e2d77820429a",
+              completed_at: new Date().toISOString(),
+              point_earned: 10,
+            },
+          ]);
+        }
+      };
+      fetchMissions();
     }
   };
 
@@ -827,8 +949,18 @@ const GradeShareForm = ({
         {/* Header */}
         <div className="text-center mb-8">
           <div className="mx-auto w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+            <svg
+              className="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"
+              />
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">
@@ -846,25 +978,37 @@ const GradeShareForm = ({
             <div className="flex items-center gap-3">
               <div className="text-center">
                 <span className="text-sm text-teal-600 block">Skor</span>
-                <span className={`font-bold text-xl ${
-                  analysis_result?.grade === "A" ? "text-green-500" :
-                  analysis_result?.grade === "B" ? "text-blue-500" :
-                  analysis_result?.grade === "C" ? "text-yellow-500" :
-                  analysis_result?.grade === "D" ? "text-orange-600" :
-                  "text-red-500"
-                }`}>
+                <span
+                  className={`font-bold text-xl ${
+                    analysis_result?.grade === "A"
+                      ? "text-green-500"
+                      : analysis_result?.grade === "B"
+                      ? "text-blue-500"
+                      : analysis_result?.grade === "C"
+                      ? "text-yellow-500"
+                      : analysis_result?.grade === "D"
+                      ? "text-orange-600"
+                      : "text-red-500"
+                  }`}
+                >
                   {analysis_result?.skor_kebersihan}
                 </span>
               </div>
               <div className="text-center">
                 <span className="text-sm text-teal-600 block">Grade</span>
-                <span className={`font-bold text-xl ${
-                  analysis_result?.grade === "A" ? "text-green-500" :
-                  analysis_result?.grade === "B" ? "text-blue-500" :
-                  analysis_result?.grade === "C" ? "text-yellow-500" :
-                  analysis_result?.grade === "D" ? "text-orange-600" :
-                  "text-red-500"
-                }`}>
+                <span
+                  className={`font-bold text-xl ${
+                    analysis_result?.grade === "A"
+                      ? "text-green-500"
+                      : analysis_result?.grade === "B"
+                      ? "text-blue-500"
+                      : analysis_result?.grade === "C"
+                      ? "text-yellow-500"
+                      : analysis_result?.grade === "D"
+                      ? "text-orange-600"
+                      : "text-red-500"
+                  }`}
+                >
                   {analysis_result?.grade}
                 </span>
               </div>
@@ -875,10 +1019,28 @@ const GradeShareForm = ({
         <div className="space-y-6">
           {/* Nama Lokasi */}
           <div className="space-y-2">
-            <Label htmlFor="nama" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            <Label
+              htmlFor="nama"
+              className="text-sm font-semibold text-slate-700 flex items-center gap-2"
+            >
+              <svg
+                className="w-4 h-4 text-teal-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
               Nama Lokasi <span className="text-red-500">*</span>
             </Label>
@@ -892,13 +1054,26 @@ const GradeShareForm = ({
               className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-200 bg-white shadow-sm"
             />
           </div>
-          
+
           {/* Alamat Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="alamat" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z" />
+              <Label
+                htmlFor="alamat"
+                className="text-sm font-semibold text-slate-700 flex items-center gap-2"
+              >
+                <svg
+                  className="w-4 h-4 text-teal-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z"
+                  />
                 </svg>
                 Alamat Lengkap <span className="text-red-500">*</span>
               </Label>
@@ -916,8 +1091,18 @@ const GradeShareForm = ({
                   </>
                 ) : (
                   <>
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <svg
+                      className="w-3 h-3 mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
                     </svg>
                     Lokasi Saat Ini
                   </>
@@ -941,18 +1126,28 @@ const GradeShareForm = ({
               )}
             </div>
             <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
-              💡 {isLoadingAddress 
-                ? "Sedang mendapatkan alamat..." 
-                : "Alamat akan berubah otomatis saat Anda memilih koordinat di peta di bawah"
-              }
+              💡{" "}
+              {isLoadingAddress
+                ? "Sedang mendapatkan alamat..."
+                : "Alamat akan berubah otomatis saat Anda memilih koordinat di peta di bawah"}
             </p>
           </div>
 
           {/* Map Section */}
           <div className="space-y-2">
             <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              <svg
+                className="w-4 h-4 text-teal-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                />
               </svg>
               Pilih Lokasi di Peta
             </Label>
@@ -966,7 +1161,7 @@ const GradeShareForm = ({
               🗺️ Klik dan drag marker di peta untuk memilih lokasi yang tepat
             </p>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex items-center gap-3 pt-6 border-t border-slate-200">
             {!loading && (
@@ -979,13 +1174,13 @@ const GradeShareForm = ({
                 Batal
               </Button>
             )}
-            <Button 
-              type="submit" 
-              disabled={loading || !form.nama.trim() || !form.alamat.trim()} 
+            <Button
+              type="submit"
+              disabled={loading || !form.nama.trim() || !form.alamat.trim()}
               onClick={submit}
               className={`flex-1 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 ${
                 loading || !form.nama.trim() || !form.alamat.trim()
-                  ? "bg-slate-300 text-slate-500 cursor-not-allowed" 
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed"
                   : "bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white shadow-teal-200"
               }`}
             >
@@ -996,8 +1191,18 @@ const GradeShareForm = ({
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"
+                    />
                   </svg>
                   Bagikan ke Komunitas
                 </>

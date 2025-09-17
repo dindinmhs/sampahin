@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { GoogleAuth } from 'google-auth-library';
-import { GoogleGenAI } from '@google/genai';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { GoogleAuth } from "google-auth-library";
+import { GoogleGenAI } from "@google/genai";
 
 interface UpdateGradingCheckResult {
   report_id: string;
@@ -25,21 +25,24 @@ interface GradingResult {
   deskripsi: string;
 }
 
-
 // Generate image embedding
-async function generateImageEmbedding(imageBase64: string): Promise<number[] | null> {
+async function generateImageEmbedding(
+  imageBase64: string
+): Promise<number[] | null> {
   try {
     // Setup Google Auth
     let auth;
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
       auth = new GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-        credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+        credentials: JSON.parse(
+          process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+        ),
       });
     } else {
       auth = new GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-        keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+        keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
       });
     }
 
@@ -47,8 +50,8 @@ async function generateImageEmbedding(imageBase64: string): Promise<number[] | n
     const accessToken = await authClient.getAccessToken();
 
     const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
-    const location = 'us-central1';
-    const model = 'multimodalembedding@001';
+    const location = "us-central1";
+    const model = "multimodalembedding@001";
 
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:predict`;
 
@@ -57,35 +60,34 @@ async function generateImageEmbedding(imageBase64: string): Promise<number[] | n
         {
           text: "Analisis kondisi kebersihan lokasi dari gambar",
           image: {
-            bytesBase64Encoded: imageBase64
-          }
-        }
+            bytesBase64Encoded: imageBase64,
+          },
+        },
       ],
       parameters: {
-        dimension: 512
-      }
+        dimension: 512,
+      },
     };
 
     const response = await fetch(endpoint, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${accessToken.token}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken.token}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Vertex AI API error:', errorText);
+      console.error("Vertex AI API error:", errorText);
       throw new Error(`Vertex AI API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data.predictions?.[0]?.imageEmbedding || null;
-
   } catch (error) {
-    console.error('Error generating image embedding:', error);
+    console.error("Error generating image embedding:", error);
     return null;
   }
 }
@@ -97,16 +99,18 @@ async function checkImageSimilarity(
   similarityThreshold: number = 0.6
 ): Promise<UpdateGradingCheckResult | null> {
   const supabase = createClient();
-  console.log(locationId)
+  console.log(locationId);
 
   try {
-    const { data, error } = await (await supabase).rpc('check_image_similarity_for_location', {
+    const { data, error } = await (
+      await supabase
+    ).rpc("check_image_similarity_for_location", {
       query_image_embedding: imageEmbedding,
-      target_location_id: locationId
+      target_location_id: locationId,
     });
 
     if (error) {
-      console.error('Image similarity check error:', error);
+      console.error("Image similarity check error:", error);
       return null;
     }
 
@@ -120,15 +124,17 @@ async function checkImageSimilarity(
 
     return {
       ...result,
-      can_update: canUpdate
+      can_update: canUpdate,
     };
   } catch (error) {
-    console.error('Error in image similarity check:', error);
+    console.error("Error in image similarity check:", error);
     return null;
   }
 }
 
-async function performGrading(imageBase64: string): Promise<GradingResult | null> {
+async function performGrading(
+  imageBase64: string
+): Promise<GradingResult | null> {
   try {
     const ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY!,
@@ -172,7 +178,7 @@ Jawab langsung sesuai format tanpa pengantar atau markdown.`,
       config,
       contents,
     });
-    
+
     if (response.text) {
       const text = response.text;
       const parsedResult = parseGradingResult(text);
@@ -181,11 +187,11 @@ Jawab langsung sesuai format tanpa pengantar atau markdown.`,
       return {
         skor_kebersihan: 0,
         grade: "E",
-        deskripsi: "AI tidak memberikan response yang valid"
+        deskripsi: "AI tidak memberikan response yang valid",
       };
     }
   } catch (error) {
-    console.error('Error in grading analysis:', error);
+    console.error("Error in grading analysis:", error);
     return null;
   }
 }
@@ -193,16 +199,18 @@ Jawab langsung sesuai format tanpa pengantar atau markdown.`,
 // Parse grading result from AI response
 function parseGradingResult(text: string): GradingResult {
   // Cek jika AI mengatakan gambar bukan untuk grading sampah
-  const isNotTrashGrading = text.toLowerCase().includes("tidak berkaitan dengan grading sampah") || 
-                           text.toLowerCase().includes("bukan sampah") ||
-                           text.toLowerCase().includes("objek bukanlah sampah") ||
-                           text.toLowerCase().includes("tidak dapat dinilai");
+  const isNotTrashGrading =
+    text.toLowerCase().includes("tidak berkaitan dengan grading sampah") ||
+    text.toLowerCase().includes("bukan sampah") ||
+    text.toLowerCase().includes("objek bukanlah sampah") ||
+    text.toLowerCase().includes("tidak dapat dinilai");
 
   if (isNotTrashGrading) {
     return {
       skor_kebersihan: 0,
       grade: "E",
-      deskripsi: "Objek bukanlah sampah yang dapat dinilai untuk grading kebersihan",
+      deskripsi:
+        "Objek bukanlah sampah yang dapat dinilai untuk grading kebersihan",
     };
   }
 
@@ -215,7 +223,9 @@ function parseGradingResult(text: string): GradingResult {
     return {
       skor_kebersihan: 0,
       grade: "E",
-      deskripsi: text.trim() || "Objek bukanlah sampah yang dapat dinilai untuk grading kebersihan",
+      deskripsi:
+        text.trim() ||
+        "Objek bukanlah sampah yang dapat dinilai untuk grading kebersihan",
     };
   }
 
@@ -228,125 +238,118 @@ function parseGradingResult(text: string): GradingResult {
 
 export async function POST(request: NextRequest) {
   try {
-    const { image, locationId, similarityThreshold = 0.6 } = await request.json();
+    const {
+      image,
+      locationId,
+      similarityThreshold = 0.6,
+    } = await request.json();
 
     if (!image) {
-      return NextResponse.json(
-        { error: 'Image is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Image is required" }, { status: 400 });
     }
 
     if (!locationId) {
       return NextResponse.json(
-        { error: 'Location ID is required' },
+        { error: "Location ID is required" },
         { status: 400 }
       );
     }
 
-    console.log('=== UPDATE GRADING CHECK PROCESS ===');
-    console.log('Location ID:', locationId);
-    console.log('Similarity Threshold:', similarityThreshold);
+    console.log("=== UPDATE GRADING CHECK PROCESS ===");
+    console.log("Location ID:", locationId);
+    console.log("Similarity Threshold:", similarityThreshold);
 
     // Step 1: Perform grading analysis
-    console.log('Step 1: Performing grading analysis...');
+    console.log("Step 1: Performing grading analysis...");
     const gradingResult = await performGrading(image);
-    
+
     if (!gradingResult) {
       return NextResponse.json(
-        { error: 'Failed to perform grading analysis' },
+        { error: "Failed to perform grading analysis" },
         { status: 500 }
       );
     }
 
-    console.log('Grading Result:', {
+    console.log("Grading Result:", {
       grade: gradingResult.grade,
-      score: gradingResult.skor_kebersihan
+      score: gradingResult.skor_kebersihan,
     });
 
-    // Step 2: Check if grade meets minimum requirement (B or better)
-    const isValidGrade = gradingResult.grade === "A" || gradingResult.grade === "B";
-    
-    if (!isValidGrade) {
-      console.log('Grade not sufficient for sharing:', gradingResult.grade);
-      return NextResponse.json({
-        grading: gradingResult,
-        similarity: null,
-        canShare: false,
-        reason: 'grade_insufficient'
-      });
-    }
+    // Step 2: All grades are now allowed for update (removed minimum requirement)
+    const isValidGrade = true; // Allow all grades (A, B, C, D)
 
     // Step 3: Generate image embedding
-    console.log('Step 2: Generating image embedding...');
+    console.log("Step 2: Generating image embedding...");
     const imageEmbedding = await generateImageEmbedding(image);
-    
+
     if (!imageEmbedding) {
-      console.log('Failed to generate image embedding, allowing share for valid grade');
+      console.log(
+        "Failed to generate image embedding, allowing share for valid grade"
+      );
       return NextResponse.json({
         grading: gradingResult,
         similarity: null,
         canShare: true,
-        reason: 'no_embedding_first_report'
+        reason: "no_embedding_first_report",
       });
     }
 
-    console.log('Image embedding generated, length:', imageEmbedding.length);
+    console.log("Image embedding generated, length:", imageEmbedding.length);
 
     // Step 4: Check image similarity with previous reports
-    console.log('Step 3: Checking image similarity...');
+    console.log("Step 3: Checking image similarity...");
     const similarityResult = await checkImageSimilarity(
-      imageEmbedding, 
-      locationId, 
+      imageEmbedding,
+      locationId,
       similarityThreshold
     );
 
     if (!similarityResult) {
-      console.log('No previous report found, allowing share for valid grade');
+      console.log("No previous report found, allowing share for valid grade");
       return NextResponse.json({
         grading: gradingResult,
         similarity: null,
         canShare: true,
-        reason: 'no_previous_report'
+        reason: "no_previous_report",
       });
     }
 
-    console.log('Similarity Result:', {
+    console.log("Similarity Result:", {
       previous_grade: similarityResult.grade,
       previous_score: similarityResult.score,
-      image_similarity: (similarityResult.image_similarity * 100).toFixed(2) + '%',
-      can_update: similarityResult.can_update
+      image_similarity:
+        (similarityResult.image_similarity * 100).toFixed(2) + "%",
+      can_update: similarityResult.can_update,
     });
 
     // Step 5: Determine if sharing is allowed
     const canShare = isValidGrade && similarityResult.can_update;
-    const reason = canShare 
-      ? 'valid' 
-      : !isValidGrade 
-        ? 'grade_insufficient' 
-        : 'similarity_too_low';
+    const reason = canShare
+      ? "valid"
+      : !isValidGrade
+      ? "grade_insufficient"
+      : "similarity_too_low";
 
-    console.log('Final Decision:', {
+    console.log("Final Decision:", {
       canShare,
       reason,
       grade_valid: isValidGrade,
-      similarity_valid: similarityResult.can_update
+      similarity_valid: similarityResult.can_update,
     });
-    console.log('=====================================');
+    console.log("=====================================");
 
     return NextResponse.json({
       grading: gradingResult,
       similarity: similarityResult,
       canShare,
-      reason
+      reason,
     });
-
   } catch (error) {
-    console.error('Update grading check error:', error);
+    console.error("Update grading check error:", error);
     return NextResponse.json(
-      { 
-        error: 'Failed to check update grading eligibility',
-        details: error instanceof Error ? error.message : 'Unknown error'
+      {
+        error: "Failed to check update grading eligibility",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );
