@@ -5,7 +5,7 @@ const Page = () => {
   return (
     <>
       <Navbar title="Leaderboard Kota" />
-      <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-6">
+      <main className="min-h-screen bg-gray-50 py-5">
         <CityLeaderboard />
       </main>
     </>

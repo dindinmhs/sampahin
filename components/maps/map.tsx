@@ -19,7 +19,7 @@ import SearchLocation from "./search-location";
 import { LocationCleanerType, LocationType } from "@/types/location";
 import CategoryFilter from "./category-filter";
 import ChatSidebar from "@/components/chat-forum/chat-sidebar";
-import { Info, Satellite, Map, MapPin, MessageCircle } from "lucide-react"; // Tambahkan import ini
+import { Info, Satellite, Map, MapPin, Sparkles } from "lucide-react"; // Tambahkan import ini
 import LegendPopup from "./legend-popup";
 import ChatBotFloating from "./chatbot";
 
@@ -550,10 +550,10 @@ const Maps = () => {
       <div className="absolute bottom-60 right-2 z-[50]">
         <button
           onClick={handleOpenChatBot}
-          className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors flex items-center justify-center"
+          className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 p-2 rounded-lg shadow-md transition-colors flex items-center justify-center"
           title="Tanya AI Assistant"
         >
-          <MessageCircle size={24} />
+          <Sparkles size={20} />
         </button>
       </div>
       {isChatBotOpen && (
