@@ -374,7 +374,12 @@ const handleAudioGenerated = async (audioBase64: string) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() && !selectedImage) return;
-    if (isProcessing) return; // Prevent multiple submissions
+    if (isProcessing) return; 
+    if (selectedImage && !query.trim()) {
+      console.log('❌ Image provided but no text query');
+      setError('Mohon berikan deskripsi atau pertanyaan untuk gambar yang diupload');
+      return;
+    }
 
     setIsLoading(true);
     setIsProcessing(true);
@@ -650,22 +655,31 @@ const handleAudioGenerated = async (audioBase64: string) => {
             </div>
             
             <button
-    type="submit"
-    disabled={(!query.trim() && !selectedImage) || isLoading || isProcessing || connectionStatus !== 'connected'}
-    className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
-  >
-    {isLoading || isProcessing ? (
-      <>
-        <Loader2 size={14} className="animate-spin" />
-        <span>{isProcessing ? 'Processing...' : 'Loading...'}</span>
-      </>
-    ) : (
-      <>
-        <Send size={14} />
-        <span>Kirim</span>
-      </>
-    )}
-  </button>
+              type="submit"
+              disabled={
+                // Original conditions
+                isLoading || 
+                isProcessing || 
+                connectionStatus !== 'connected' ||
+                // New condition: disable if image exists but no text query
+                (selectedImage && !query.trim()) ||
+                // Also disable if no input at all
+                (!query.trim() && !selectedImage)
+              }
+              className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+            >
+              {isLoading || isProcessing ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>{isProcessing ? 'Processing...' : 'Loading...'}</span>
+                </>
+              ) : (
+                <>
+                  <Send size={14} />
+                  <span>Kirim</span>
+                </>
+              )}
+            </button>
           </div>
         </form>
       </div>

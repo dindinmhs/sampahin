@@ -27,6 +27,9 @@ interface EmbeddingResult {
   imageEmbedding: number[] | null;
 }
 
+// Fix: Add 'image' to the search mode type union
+type SearchMode = 'text' | 'multimodal';
+
 // Fungsi untuk generate embedding
 async function generateEmbedding(text: string, imageBase64?: string): Promise<EmbeddingResult> {
   try {
@@ -94,7 +97,7 @@ async function generateEmbedding(text: string, imageBase64?: string): Promise<Em
 async function searchRAG(
   textEmbedding: number[] | null,
   imageEmbedding: number[] | null,
-  searchMode: 'text' | 'image' | 'multimodal',
+  searchMode: SearchMode, // Use the defined type
   limit: number = 5
 ): Promise<RAGResult[]> {
   const supabase = createClient();
@@ -145,7 +148,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine search mode
-    let searchMode: 'text' | 'image' | 'multimodal';
+    let searchMode: SearchMode // Use the defined type
     if (query.trim() && imageFile) {
       searchMode = 'multimodal';
     } else if (imageFile && !query.trim()) {
@@ -155,7 +158,6 @@ export async function POST(request: NextRequest) {
     } else {
       searchMode = 'text';
     }
-
     console.log('=== CHATBOT RAG PROCESS ===');
     console.log('Query:', query);
     console.log('Has Image:', !!imageFile);
@@ -213,9 +215,6 @@ export async function POST(request: NextRequest) {
         case 'multimodal':
           modeDescription = "berdasarkan analisis teks dan gambar";
           break;
-        case 'image':
-          modeDescription = "berdasarkan analisis gambar";
-          break;
       }
       
       aiResponse = `Berdasarkan data yang tersedia ${modeDescription}, saya menemukan ${ragResults.length} lokasi yang relevan dengan pertanyaan Anda.
@@ -239,7 +238,7 @@ ${topResult.ai_description}
 
 ${ragResults.length > 1 ? `\nSaya juga menemukan ${ragResults.length - 1} lokasi lain yang mungkin relevan untuk Anda.` : ''}`;
     } else {
-      aiResponse = `Maaf, saya tidak menemukan informasi yang relevan dengan ${searchMode === 'text' ? 'pencarian teks' : searchMode === 'image' ? 'gambar' : 'pencarian multimodal'} Anda. Coba gunakan kata kunci yang berbeda atau lebih spesifik seperti nama lokasi, jenis tempat, atau kondisi kebersihan yang ingin dicari.`;
+      aiResponse = `Maaf, saya tidak menemukan informasi yang relevan dengan ${searchMode === 'text' ? 'pencarian teks' : 'pencarian multimodal'} Anda. Coba gunakan kata kunci yang berbeda atau lebih spesifik seperti nama lokasi, jenis tempat, atau kondisi kebersihan yang ingin dicari.`;
     }
 
     return NextResponse.json({
