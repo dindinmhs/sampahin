@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="public/logo.png" alt="Sampahin Logo" width="200" height="200">
+</div>
+
 # Sampahin
 
 **Sampahin** adalah platform web kolaboratif berbasis AI yang memungkinkan pengguna untuk melakukan _grading_ kebersihan lokasi dan beraksi bersama melalui peta interaktif. Aplikasi ini bertujuan untuk mendorong partisipasi masyarakat dalam menjaga kebersihan lingkungan dengan fitur-fitur cerdas dan kolaboratif.
@@ -28,7 +32,7 @@
   Lihat peringkat pengguna berdasarkan poin yang dikumpulkan dari aktivitas membersihkan lingkungan dan berkontribusi pada komunitas.
 
 - **AI Chatbot Asisten**  
-  Chatbot cerdas yang dapat membantu menjawab pertanyaan tentang kebersihan lingkungan, cara mengelola sampah, dan tips ramah lingkungan.
+  Chatbot cerdas dengan teknologi RAG yang dapat menjawab pertanyaan tentang kebersihan lokasi, navigasi lokasi, dan melakukan pencarian multimodal (teks + gambar), serta memberikan respons AI berupa suara.
 
 ---
 
@@ -109,7 +113,7 @@ yarn install
    - Buat API key baru
    - Isi `GEMINI_API_KEY` dan `NEXT_PUBLIC_GEMINI_API_KEY`
 
-   **Google Cloud (Opsional):**
+   **Google Cloud:**
 
    - Untuk fitur AI yang lebih canggih, setup Google Cloud Project
    - Isi `GOOGLE_CLOUD_PROJECT_ID` dan credential yang diperlukan
