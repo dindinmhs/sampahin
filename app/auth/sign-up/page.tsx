@@ -38,7 +38,8 @@ export default function Page() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      // ✅ Attempt signup
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -47,11 +48,42 @@ export default function Page() {
           },
         },
       });
-      if (error) throw error;
+
+      if (error) {
+        // Handle specific Supabase errors
+        if (error.message.toLowerCase().includes("user already registered") || 
+            error.message.toLowerCase().includes("already registered")) {
+          setError("Email ini sudah terdaftar. Silakan login.");
+        } else {
+          setError(error.message);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // ✅ Check if user already exists (Supabase doesn't always throw error)
+      if (data.user) {
+        // If identities array is empty, user already exists
+        if (data.user.identities && data.user.identities.length === 0 && data.user.confirmed_at) {
+          setError("Email ini sudah terdaftar dan terverifikasi. Silakan login.");
+          setIsLoading(false);
+          return;
+        }
+
+        // If user is already confirmed (shouldn't happen in signup, but just in case)
+        if (data.user.confirmed_at) {
+          setError("Email ini sudah terdaftar dan terverifikasi. Silakan login.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // ✅ Success - new user created
       router.push("/auth/sign-up-success");
+      
     } catch (error: unknown) {
+      console.error("Signup error:", error);
       setError(error instanceof Error ? error.message : "Terjadi kesalahan");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -179,8 +211,16 @@ export default function Page() {
               </div>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                  {error}
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm">{error}</p>
+                  {error.toLowerCase().includes("sudah terdaftar") && (
+                    <Link
+                      href="/auth/login"
+                      className="text-sm text-red-700 underline underline-offset-4 mt-1 inline-block hover:text-red-800"
+                    >
+                      Login sekarang →
+                    </Link>
+                  )}
                 </div>
               )}
 
@@ -196,6 +236,7 @@ export default function Page() {
                       className="pl-9 sm:pl-10 text-sm sm:text-base focus:ring-emerald-500 focus:border-emerald-500"
                       placeholder="Masukkan nama lengkap"
                       required
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -210,6 +251,7 @@ export default function Page() {
                       className="pl-9 sm:pl-10 text-sm sm:text-base focus:ring-emerald-500 focus:border-emerald-500"
                       placeholder="Masukkan alamat email"
                       required
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -224,11 +266,14 @@ export default function Page() {
                       className="pl-9 sm:pl-10 pr-10 text-sm sm:text-base focus:ring-emerald-500 focus:border-emerald-500"
                       placeholder="Masukkan password (min. 6 karakter)"
                       required
+                      disabled={isLoading}
+                      minLength={6}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                      disabled={isLoading}
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
@@ -249,6 +294,8 @@ export default function Page() {
                       className="pl-9 sm:pl-10 pr-10 text-sm sm:text-base focus:ring-emerald-500 focus:border-emerald-500"
                       placeholder="Ulangi password"
                       required
+                      disabled={isLoading}
+                      minLength={6}
                     />
                     <button
                       type="button"
@@ -256,6 +303,7 @@ export default function Page() {
                         setShowConfirmPassword(!showConfirmPassword)
                       }
                       className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                      disabled={isLoading}
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
@@ -270,7 +318,7 @@ export default function Page() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 sm:py-3 text-sm sm:text-base rounded-lg"
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 sm:py-3 text-sm sm:text-base rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? "Mendaftar..." : "Daftar Sekarang"}
                 </Button>

@@ -8,9 +8,7 @@ import {
   ImageIcon,
   Volume2,
   VolumeX,
-  RefreshCw,
 } from "lucide-react";
-import { AIAgentService } from "@/lib/ai-agent/maps-ai-agent";
 import Image from "next/image";
 
 interface ChatBotFloatingProps {
@@ -51,7 +49,7 @@ interface RAGResult {
 interface ChatResponse {
   message: string;
   rag_results: RAGResult[];
-  search_mode: "text" | "image" | "multimodal";
+  search_mode: "text" | "multimodal";
   embeddings_info: {
     text_embedding_length: number;
     image_embedding_length: number;
@@ -72,11 +70,7 @@ const ChatBotFloating = ({
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [aiAgent, setAiAgent] = useState<AIAgentService | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null
-  );
   const [connectionStatus, setConnectionStatus] = useState<
     "disconnected" | "connecting" | "connected"
   >("disconnected");
@@ -86,278 +80,388 @@ const ChatBotFloating = ({
   const [isTextVisible, setIsTextVisible] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioQueueRef = useRef<AudioBuffer[]>([]);
+  const isPlayingRef = useRef(false);
+  const nextStartTimeRef = useRef(0);
+  const playbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Initialize AI Agent
-  useEffect(() => {
-    if (isOpen && !aiAgent) {
-      initializeAgent();
-    }
-
-    return () => {
-      if (aiAgent && !isOpen) {
-        aiAgent.disconnect();
-        setAiAgent(null);
-        setConnectionStatus("disconnected");
-      }
-    };
-  }, [isOpen]);
-
-  const initializeAgent = async () => {
-    setConnectionStatus("connecting");
-    setError(null);
-
-    try {
-      const agent = new AIAgentService({
-        onLocationDetails,
-        onNavigate,
-        onHighlightLocations,
-        onSetMapFilter,
-        onFindNearby,
-        onAudioGenerated: handleAudioGenerated,
-        onTextGenerated: handleTextGenerated, // Add text handler
-        userLocation,
-      });
-
-      await agent.initialize();
-      setAiAgent(agent);
-      setConnectionStatus("connected");
-      console.log("AI Agent initialized successfully");
-    } catch (error) {
-      console.error("Failed to initialize AI Agent:", error);
-      setError("Failed to connect to AI Agent");
-      setConnectionStatus("disconnected");
+  // Initialize audio context
+  const initAudio = async () => {
+    if (!audioContextRef.current) {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = ctx;
+      nextStartTimeRef.current = ctx.currentTime;
+      // console.log('🎵 Audio context initialized');
     }
   };
-  const handleTextGenerated = (text: string) => {
-    console.log("📝 Text response received:", text);
-    setAiResponse(text);
-    setIsTextVisible(true);
 
-    // Auto-hide text after 10 seconds
-    setTimeout(() => {
-      setIsTextVisible(false);
-    }, 10000);
-  };
-  const handleReconnect = async () => {
-    if (aiAgent) {
-      aiAgent.disconnect();
-    }
-    setAiAgent(null);
-    await initializeAgent();
-  };
-
-  // Auto focus when opened
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  // Perbaiki method handleAudioGenerated
-  const handleAudioGenerated = async (audioBase64: string) => {
+  // Play audio chunk - EXACTLY LIKE HTML
+  const playAudioChunk = async (base64Data: string) => {
     if (!isAudioEnabled) {
-      console.log("🔇 Audio disabled, skipping playback");
+      // console.log('🔇 Audio disabled, skipping chunk');
       return;
     }
 
-    console.log("🎵 Received complete audio for playback:", {
-      size: audioBase64.length,
-      timestamp: new Date().toISOString(),
-    });
+    await initAudio();
+    const audioContext = audioContextRef.current;
+    if (!audioContext) return;
 
     try {
-      // Stop any currently playing audio
-      if (currentAudio) {
-        console.log("⏹️ Stopping current audio");
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-        currentAudio.src = "";
-        setCurrentAudio(null);
-      }
+      // console.log('🎵 Processing audio chunk, size:', base64Data.length);
 
-      // Convert base64 to audio buffer with better error handling
-      let binaryString: string;
-      try {
-        binaryString = atob(audioBase64);
-      } catch (decodeError) {
-        console.error("❌ Failed to decode base64 audio:", decodeError);
-        return;
-      }
-
-      // Create typed array from binary string
-      const arrayBuffer = new ArrayBuffer(binaryString.length);
-      const uint8Array = new Uint8Array(arrayBuffer);
-
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
-        uint8Array[i] = binaryString.charCodeAt(i);
+        bytes[i] = binaryString.charCodeAt(i);
       }
 
-      // Create blob with proper MIME type
-      const blob = new Blob([uint8Array], { type: "audio/wav" });
+      const samples = bytes.length / 2;
+      
+      if (samples === 0) return;
+      
+      const audioBuffer = audioContext.createBuffer(1, samples, 24000);
+      const channelData = audioBuffer.getChannelData(0);
 
-      // Validate blob size
-      if (blob.size === 0) {
-        console.error("❌ Generated audio blob is empty");
-        return;
+      for (let i = 0; i < samples; i++) {
+        const byte1 = bytes[i * 2];
+        const byte2 = bytes[i * 2 + 1];
+        let sample = byte1 | (byte2 << 8);
+        
+        if (sample >= 32768) {
+          sample -= 65536;
+        }
+        
+        channelData[i] = sample / 32768.0;
       }
 
-      console.log("📊 Audio blob created:", {
-        size: blob.size,
-        type: blob.type,
+      audioQueueRef.current.push(audioBuffer);
+      // console.log('🎵 Audio buffer added, queue length:', audioQueueRef.current.length);
+      
+      if (!isPlayingRef.current) {
+        playNextChunk();
+      }
+
+    } catch (error) {
+      console.error('❌ Error processing audio chunk:', error);
+    }
+  };
+
+  // Play next chunk
+  const playNextChunk = () => {
+    if (audioQueueRef.current.length === 0) {
+      // console.log('🎵 Audio queue empty, stopping playback');
+      isPlayingRef.current = false;
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    const audioContext = audioContextRef.current;
+    if (!audioContext) {
+      console.error('❌ No audio context available');
+      isPlayingRef.current = false;
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    // console.log('🎵 Playing next chunk, queue length:', audioQueueRef.current.length);
+    isPlayingRef.current = true;
+    setIsPlayingAudio(true);
+    
+    const audioBuffer = audioQueueRef.current.shift()!;
+    
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContext.destination);
+    
+    const now = audioContext.currentTime;
+    const startTime = Math.max(now, nextStartTimeRef.current);
+    
+    source.start(startTime);
+    nextStartTimeRef.current = startTime + audioBuffer.duration;
+    
+    const duration = audioBuffer.duration * 1000;
+    
+    if (playbackTimeoutRef.current) {
+      clearTimeout(playbackTimeoutRef.current);
+    }
+    
+    playbackTimeoutRef.current = setTimeout(() => {
+      playNextChunk();
+    }, duration + 10);
+    
+    source.onended = () => {
+      if (playbackTimeoutRef.current) {
+        clearTimeout(playbackTimeoutRef.current);
+        playbackTimeoutRef.current = null;
+      }
+      setTimeout(() => playNextChunk(), 5);
+    };
+
+    source.onerror = (error) => {
+      console.error('❌ Audio source error:', error);
+      if (playbackTimeoutRef.current) {
+        clearTimeout(playbackTimeoutRef.current);
+        playbackTimeoutRef.current = null;
+      }
+      isPlayingRef.current = false;
+      setIsPlayingAudio(false);
+      setTimeout(() => playNextChunk(), 100);
+    };
+  };
+
+  // Reset audio state
+  const resetAudioState = () => {
+    // console.log('🔄 Resetting audio state');
+    
+    if (playbackTimeoutRef.current) {
+      clearTimeout(playbackTimeoutRef.current);
+      playbackTimeoutRef.current = null;
+    }
+    
+    audioQueueRef.current = [];
+    isPlayingRef.current = false;
+    setIsPlayingAudio(false);
+    setIsProcessing(false)
+    
+    if (audioContextRef.current) {
+      nextStartTimeRef.current = audioContextRef.current.currentTime + 0.1;
+    }
+  };
+
+  // Handle form submission with streaming
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim() && !selectedImage) return;
+    if (isProcessing) return;
+    if (selectedImage && !query.trim()) {
+      setError("Mohon berikan deskripsi atau pertanyaan untuk gambar yang diupload");
+      return;
+    }
+
+    setIsLoading(true);
+    setIsProcessing(true);
+    setError(null);
+    setConnectionStatus("connecting");
+
+    resetAudioState();
+
+    try {
+      // Step 1: Get RAG results
+      const formData = new FormData();
+      formData.append("query", query);
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      const response = await fetch("/api/chatbot-rag", {
+        method: "POST",
+        body: formData,
       });
 
-      const audioUrl = URL.createObjectURL(blob);
+      if (!response.ok) {
+        throw new Error("Failed to process query");
+      }
 
-      // Create new audio element with enhanced configuration
-      const audio = new Audio();
+      const data: ChatResponse = await response.json();
 
-      // Set audio properties
-      audio.preload = "auto"; // Changed from 'metadata' to 'auto'
-      audio.volume = 0.8;
-      audio.crossOrigin = "anonymous";
+      // Step 2: Prepare image base64 if needed
+      let imageBase64: string | undefined;
+      if (selectedImage) {
+        const bytes = await selectedImage.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        imageBase64 = buffer.toString("base64");
+      }
 
-      // Set up promise-based loading
-      const loadAudio = () => {
-        return new Promise<void>((resolve, reject) => {
-          const handleCanPlayThrough = () => {
-            console.log("✅ Audio can play through completely:", {
-              duration: audio.duration,
-              readyState: audio.readyState,
-            });
-            cleanup();
-            resolve();
-          };
+      // Step 3: Initialize AI session with POST
+      const sessionId = Math.random().toString(36).substring(2);
 
-          const handleError = () => {
-            console.error("❌ Audio loading error:", {
-              error: audio.error,
-              code: audio.error?.code,
-              message: audio.error?.message,
-            });
-            cleanup();
-            reject(new Error(`Audio loading failed: ${audio.error?.message}`));
-          };
+      console.log('🚀 Step 1: Sending POST to create session...');
+      const postResponse = await fetch(`/api/ai-agent-live?sessionId=${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          imageBase64,
+          ragResults: data.rag_results,
+          userLocation
+        })
+      });
 
-          const handleLoadStart = () => {
-            console.log("📥 Audio loading started");
-          };
+      if (!postResponse.ok) {
+        throw new Error('Failed to initialize AI session');
+      }
 
-          const handleProgress = () => {
-            if (audio.buffered.length > 0) {
-              const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
-              const duration = audio.duration || 0;
-              const percent = duration > 0 ? (bufferedEnd / duration) * 100 : 0;
-              console.log(`📊 Audio buffering: ${percent.toFixed(1)}%`);
-            }
-          };
+      const { success } = await postResponse.json();
+      if (!success) {
+        throw new Error('Failed to queue request');
+      }
 
-          const cleanup = () => {
-            audio.removeEventListener("canplaythrough", handleCanPlayThrough);
-            audio.removeEventListener("error", handleError);
-            audio.removeEventListener("loadstart", handleLoadStart);
-            audio.removeEventListener("progress", handleProgress);
-          };
+      console.log('✅ Session created, opening SSE stream...');
 
-          // Add event listeners
-          audio.addEventListener("canplaythrough", handleCanPlayThrough, {
-            once: true,
-          });
-          audio.addEventListener("error", handleError, { once: true });
-          audio.addEventListener("loadstart", handleLoadStart, { once: true });
-          audio.addEventListener("progress", handleProgress);
+      // Step 4: Open SSE stream with GET
+      const eventSource = new EventSource(`/api/ai-agent-live?sessionId=${sessionId}`);
+      eventSourceRef.current = eventSource;
 
-          // Set source and start loading
-          audio.src = audioUrl;
-          audio.load();
-        });
+      eventSource.onopen = () => {
+        console.log('🔗 SSE connection opened');
       };
 
-      // Set up playback event handlers
-      const setupPlaybackHandlers = () => {
-        const handlePlay = () => {
-          console.log("▶️ Audio playback started");
-          setIsPlayingAudio(true);
-        };
+      eventSource.onmessage = async (event) => {
+        try {
+          const streamData = JSON.parse(event.data);
+          console.log('📨 Received SSE message:', streamData.type);
 
-        const handlePause = () => {
-          console.log("⏸️ Audio playback paused");
-          setIsPlayingAudio(false);
-        };
+          switch (streamData.type) {
+            case 'connected':
+              console.log('✅ AI Agent connected');
+              setConnectionStatus("connected");
+              break;
 
-        const handleEnded = () => {
-          console.log("🏁 Audio playback completed");
-          cleanupAudio();
-        };
+            case 'text':
+              console.log('💬 Text received:', streamData.text);
+              setAiResponse(prev => prev + streamData.text);
+              setIsTextVisible(true);
+              
+              // Auto hide after 10 seconds
+              setTimeout(() => {
+                setIsTextVisible(false);
+                setAiResponse("");
+              }, 10000);
+              break;
 
-        const handleError = () => {
-          console.error("❌ Audio playback error:", {
-            error: audio.error,
-            code: audio.error?.code,
-            message: audio.error?.message,
-          });
-          cleanupAudio();
-        };
+            case 'audioChunk':
+              // ✅ FIX: Handle audio data properly
+              if (streamData.data && streamData.data.length > 0) {
+                // console.log('🎵 Audio chunk received, size:', streamData.data.length);
+                await playAudioChunk(streamData.data);
+              } else {
+                console.log('⚠️ Empty audio chunk received');
+              }
+              break;
 
-        const cleanupAudio = () => {
-          URL.revokeObjectURL(audioUrl);
-          setCurrentAudio(null);
-          setIsPlayingAudio(false);
-        };
+            case 'functionCalls':
+              // ✅ FIX: Safely handle function calls
+              console.log('🔧 Function calls received:', streamData.functionCalls);
+              
+              if (Array.isArray(streamData.functionCalls)) {
+                streamData.functionCalls.forEach((call: any) => {
+                  if (call && call.name) {
+                    console.log(`🚀 Executing function: ${call.name}`, call.args);
+                    executeFunctionCall(call.name, call.args || {});
+                  } else {
+                    console.warn('⚠️ Invalid function call format:', call);
+                  }
+                });
+              } else {
+                console.warn('⚠️ functionCalls is not an array:', streamData.functionCalls);
+              }
+              break;
 
-        // Add playback event listeners
-        audio.addEventListener("play", handlePlay);
-        audio.addEventListener("pause", handlePause);
-        audio.addEventListener("ended", handleEnded);
-        audio.addEventListener("error", handleError);
+            case 'complete':
+              console.log('🏁 Stream complete');
+              setIsProcessing(false);
+              setIsLoading(false);
+              eventSource.close();
+              eventSourceRef.current = null;
+              break;
 
-        return cleanupAudio;
-      };
+            case 'error':
+              console.error('❌ Stream error:', streamData.error);
+              setError(streamData.error || 'Unknown error');
+              setIsProcessing(false);
+              setIsLoading(false);
+              setConnectionStatus("disconnected");
+              eventSource.close();
+              eventSourceRef.current = null;
+              break;
 
-      // Load audio first, then set up playback
-      await loadAudio();
-
-      const cleanupAudio = setupPlaybackHandlers();
-      setCurrentAudio(audio);
-
-      // Start playback
-      try {
-        await audio.play();
-        console.log("🎵 Audio started playing successfully");
-      } catch (playError) {
-        console.error("❌ Failed to start audio playback:", playError);
-        cleanupAudio();
-
-        // Try to handle autoplay restrictions
-        if (
-          playError instanceof Error &&
-          playError.name === "NotAllowedError"
-        ) {
-          console.log("ℹ️ Autoplay blocked - user interaction required");
-          // You could show a UI notification here
+            default:
+              console.warn('⚠️ Unknown message type:', streamData.type);
+              break;
+          }
+        } catch (parseError) {
+          console.error('❌ Error parsing SSE message:', parseError);
         }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('❌ EventSource error:', error);
+        setError("Connection error");
+        setIsProcessing(false);
+        setIsLoading(false);
+        setConnectionStatus("disconnected");
+        eventSource.close();
+        eventSourceRef.current = null;
+      };
+
+      resetForm();
+
+    } catch (error) {
+      console.error("❌ Chatbot Error:", error);
+      setError(error instanceof Error ? error.message : "Unknown error occurred");
+      setIsProcessing(false);
+      setIsLoading(false);
+      setConnectionStatus("disconnected");
+    }
+  };
+
+  // ✅ FIX: Add proper error handling and validation
+  const executeFunctionCall = (functionName: string, args: any) => {
+    console.log(`🚀 Executing function: ${functionName}`, args);
+    
+    try {
+      switch (functionName) {
+        case 'show_location_details':
+          if (args?.location_id) {
+            onLocationDetails(args.location_id, args?.focus_map !== false);
+          } else {
+            console.warn('⚠️ show_location_details missing location_id');
+          }
+          break;
+
+        case 'navigate_to_location':
+          if (args?.location_id) {
+            onNavigate(args.location_id, args?.transport_mode || 'driving');
+          } else {
+            console.warn('⚠️ navigate_to_location missing location_id');
+          }
+          break;
+
+        case 'highlight_locations':
+          if (Array.isArray(args?.location_ids) && args.location_ids.length > 0) {
+            onHighlightLocations(args.location_ids, args?.highlight_type || 'pulse');
+          } else {
+            console.warn('⚠️ highlight_locations missing or invalid location_ids');
+          }
+          break;
+
+        case 'set_map_filter':
+          if (args?.filter) {
+            onSetMapFilter(args.filter);
+          } else {
+            console.warn('⚠️ set_map_filter missing filter');
+          }
+          break;
+
+        case 'find_nearby_locations':
+          onFindNearby(
+            args?.coordinates, 
+            args?.radius_km || 5, 
+            args?.filter_type
+          );
+          break;
+
+        default:
+          console.warn(`⚠️ Unknown function: ${functionName}`);
+          break;
       }
     } catch (error) {
-      console.error("❌ Error in handleAudioGenerated:", error);
-      setIsPlayingAudio(false);
-    }
-  };
-
-  const toggleAudio = () => {
-    setIsAudioEnabled(!isAudioEnabled);
-    if (currentAudio && isAudioEnabled) {
-      currentAudio.pause();
-      setIsPlayingAudio(false);
-    }
-  };
-
-  const stopCurrentAudio = () => {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      setCurrentAudio(null);
-      setIsPlayingAudio(false);
+      console.error(`❌ Error executing function ${functionName}:`, error);
     }
   };
 
@@ -392,120 +496,64 @@ const ChatBotFloating = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim() && !selectedImage) return;
-    if (isProcessing) return;
-    if (selectedImage && !query.trim()) {
-      console.log("❌ Image provided but no text query");
-      setError(
-        "Mohon berikan deskripsi atau pertanyaan untuk gambar yang diupload"
-      );
-      return;
-    }
-
-    setIsLoading(true);
-    setIsProcessing(true);
-    setError(null);
-
-    try {
-      // First get RAG results
-      const formData = new FormData();
-      formData.append("query", query);
-      if (selectedImage) {
-        formData.append("image", selectedImage);
-      }
-
-      const response = await fetch("/api/chatbot-rag", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to process query");
-      }
-
-      const data: ChatResponse = await response.json();
-
-      // Enhanced console logging
-      // console.log('=== SAMPAHIN AI CHATBOT RESULTS ===');
-      // console.log('🔍 Query:', query);
-      // console.log('🖼️ Has Image:', !!selectedImage);
-      // console.log('🤖 Search Mode:', data.search_mode);
-      // console.log('📊 Embeddings Info:');
-      // console.log('   - Text Embedding:', data.embeddings_info.text_embedding_length, 'dimensions');
-      // console.log('   - Image Embedding:', data.embeddings_info.image_embedding_length, 'dimensions');
-      // console.log('📍 RAG Results Count:', data.rag_results.length);
-      // console.log('');
-
-      // if (data.rag_results.length > 0) {
-      //   console.log('📋 Detailed Location Results:');
-      //   data.rag_results.forEach((result, index) => {
-      //     console.log(`${index + 1}. 📍 ${result.location_name}`);
-      //     console.log(`   🏆 Grade: ${result.grade} | Score: ${result.score}/100`);
-      //     console.log(`   🎯 Type: ${result.type === 'clean' ? '✅ Bersih' : '❌ Kotor'}`);
-      //     console.log(`   📈 Overall Similarity: ${result.similarity_score}`)
-      //     console.log(`   🌍 Location: ${result.city}, ${result.province}`);
-      //     console.log(`   📌 Coordinates: [${result.lan.toFixed(4)}, ${result.lat.toFixed(4)}]`);
-      //     console.log('   ────────────────────────────');
-      //   });
-      // }
-      // console.log('===================================');
-
-      // Send to AI Agent with RAG results
-      if (aiAgent && connectionStatus === "connected" && !aiAgent.processing) {
-        let imageBase64: string | undefined;
-        if (selectedImage) {
-          const bytes = await selectedImage.arrayBuffer();
-          const buffer = Buffer.from(bytes);
-          imageBase64 = buffer.toString("base64");
-        }
-
-        try {
-          await aiAgent.sendMessage(query, imageBase64, data.rag_results);
-          console.log("✅ Message sent to AI Agent with RAG context");
-        } catch (agentError) {
-          console.error("❌ AI Agent error:", agentError);
-          setError("AI Agent connection failed. Trying to reconnect...");
-
-          // Try to reconnect
-          setTimeout(async () => {
-            await handleReconnect();
-          }, 1000);
-        }
-      } else {
-        if (aiAgent?.processing) {
-          setError("AI Agent is busy processing another request");
-        } else {
-          setError("AI Agent not connected");
-        }
-        console.warn("AI Agent not available:", {
-          hasAgent: !!aiAgent,
-          connected: connectionStatus,
-          processing: aiAgent?.processing,
-        });
-      }
-
-      // Reset form after successful submission
-      resetForm();
-    } catch (error) {
-      console.error("❌ Chatbot Error:", error);
-      setError(
-        error instanceof Error ? error.message : "Unknown error occurred"
-      );
-    } finally {
-      setIsLoading(false);
-      setIsProcessing(false);
+  const toggleAudio = () => {
+    setIsAudioEnabled(!isAudioEnabled);
+    if (!isAudioEnabled) {
+      resetAudioState();
     }
   };
 
-  // Handle click outside to close
+  const stopCurrentAudio = () => {
+    resetAudioState();
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+      setIsProcessing(false);
+      setIsLoading(false);
+      setConnectionStatus("disconnected");
+    }
+  };
+
+  // Initialize audio on user interaction
+  useEffect(() => {
+    const handleFirstClick = () => {
+      initAudio();
+    };
+    
+    document.addEventListener('click', handleFirstClick, { once: true });
+    
+    return () => {
+      document.removeEventListener('click', handleFirstClick);
+    };
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackTimeoutRef.current) {
+        clearTimeout(playbackTimeoutRef.current);
+      }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
+
+  // Auto focus when opened
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
   const handleClickOutside = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
   if (!isOpen) {
-    // Floating Button
     return (
       <div className="fixed bottom-4 right-4 z-[60]">
         <button
@@ -519,7 +567,6 @@ const ChatBotFloating = ({
     );
   }
 
-  // Floating Input Box
   return (
     <div
       className="fixed bottom-4 right-20 z-[60] w-80"
@@ -545,16 +592,16 @@ const ChatBotFloating = ({
             </div>
           </div>
         )}
-        {/* Header */}
+
         <div className="flex items-center justify-between p-3 border-b bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-lg">
           <div className="flex items-center space-x-2">
             <div className="relative">
               <Sparkles className="text-blue-600" size={20} />
             </div>
             <h4 className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              AI Assistant
+              AI Assistant Live
             </h4>
-            {/* Connection Status Indicator */}
+            
             <div className="flex items-center space-x-1">
               <div
                 className={`w-2 h-2 rounded-full ${
@@ -567,7 +614,6 @@ const ChatBotFloating = ({
                 title={`Status: ${connectionStatus}`}
               />
 
-              {/* Audio Playing Indicator */}
               {isPlayingAudio && (
                 <div className="flex items-center space-x-1">
                   <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
@@ -581,25 +627,9 @@ const ChatBotFloating = ({
                   ></div>
                 </div>
               )}
-
-              {(connectionStatus === "disconnected" ||
-                connectionStatus === "connecting") && (
-                <button
-                  onClick={handleReconnect}
-                  className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-                  title="Reconnect"
-                  disabled={connectionStatus === "connecting"}
-                >
-                  <RefreshCw
-                    size={12}
-                    className={
-                      connectionStatus === "connecting" ? "animate-spin" : ""
-                    }
-                  />
-                </button>
-              )}
             </div>
           </div>
+          
           <div className="flex items-center space-x-1">
             <button
               onClick={toggleAudio}
@@ -613,7 +643,6 @@ const ChatBotFloating = ({
               {isAudioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </button>
 
-            {/* Stop Audio Button */}
             {isPlayingAudio && (
               <button
                 onClick={stopCurrentAudio}
@@ -633,14 +662,12 @@ const ChatBotFloating = ({
           </div>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="p-3 bg-red-50 border-b border-red-200">
             <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
-        {/* Image Preview */}
         {imagePreview && (
           <div className="p-3 border-b">
             <div className="relative inline-block">
@@ -662,17 +689,16 @@ const ChatBotFloating = ({
           </div>
         )}
 
-        {/* Input Form */}
         <form onSubmit={handleSubmit} className="p-3">
           <div className="mb-3">
             <textarea
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tanya tentang kebersihan lokasi, minta lihat detail, atau navigasi..."
+              placeholder="Tanya tentang kebersihan lokasi... (Live Streaming!)"
               className="w-full p-2 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={2}
-              disabled={isLoading || connectionStatus !== "connected"}
+              disabled={isLoading}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -695,7 +721,7 @@ const ChatBotFloating = ({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                disabled={isLoading || connectionStatus !== "connected"}
+                disabled={isLoading}
                 title="Upload gambar"
               >
                 <ImageIcon size={16} />
@@ -705,13 +731,9 @@ const ChatBotFloating = ({
             <button
               type="submit"
               disabled={
-                // Original conditions
                 isLoading ||
                 isProcessing ||
-                connectionStatus !== "connected" ||
-                // New condition: disable if image exists but no text query
                 (selectedImage && !query.trim()) ||
-                // Also disable if no input at all
                 (!query.trim() && !selectedImage)
               }
               className="px-4 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm rounded hover:from-blue-600 hover:to-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center space-x-1"
@@ -719,12 +741,12 @@ const ChatBotFloating = ({
               {isLoading || isProcessing ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  <span>{isProcessing ? "Processing..." : "Loading..."}</span>
+                  <span>Streaming...</span>
                 </>
               ) : (
                 <>
                   <Send size={14} />
-                  <span>Kirim</span>
+                  <span>Live Chat</span>
                 </>
               )}
             </button>

@@ -103,7 +103,7 @@ async function searchRAG(
   const supabase = createClient();
 
   try {
-    console.log(`Calling search_similar_reports with mode: ${searchMode}`);
+    // console.log(`Calling search_similar_reports with mode: ${searchMode}`);
     
     const { data, error } = await (await supabase).rpc('search_similar_reports', {
       query_text_embedding: textEmbedding,
@@ -118,7 +118,7 @@ async function searchRAG(
       return [];
     }
 
-    console.log(`RAG search successful, results: ${data?.length || 0}`);
+    // console.log(`RAG search successful, results: ${data?.length || 0}`);
     return data || [];
   } catch (error) {
     console.error('RAG search exception:', error);
