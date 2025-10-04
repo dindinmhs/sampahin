@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push({
+        'ws': 'commonjs ws'
+      });
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
