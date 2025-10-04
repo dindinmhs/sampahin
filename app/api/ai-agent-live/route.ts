@@ -1,6 +1,10 @@
 import { GoogleGenAI, LiveServerMessage, MediaResolution, Modality, Session } from '@google/genai';
 import { functionDefinitions } from '@/lib/ai-agent/definitions';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 interface RAGResult {
   report_id: string;
   location_id: string;
