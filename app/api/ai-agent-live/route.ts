@@ -84,10 +84,9 @@ export async function GET(request: Request) {
 
   const headers = {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Cache-Control',
+    'X-Accel-Buffering': 'no',
   };
 
   const encoder = new TextEncoder();
