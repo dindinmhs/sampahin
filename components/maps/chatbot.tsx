@@ -201,17 +201,6 @@ const ChatBotFloating = ({
       }
       setTimeout(() => playNextChunk(), 5);
     };
-
-    source.onerror = (error) => {
-      console.error('❌ Audio source error:', error);
-      if (playbackTimeoutRef.current) {
-        clearTimeout(playbackTimeoutRef.current);
-        playbackTimeoutRef.current = null;
-      }
-      isPlayingRef.current = false;
-      setIsPlayingAudio(false);
-      setTimeout(() => playNextChunk(), 100);
-    };
   };
 
   // Reset audio state
