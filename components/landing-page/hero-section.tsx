@@ -17,6 +17,18 @@ const HeroSection: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // ✅ Smooth scroll to demo video section
+  const scrollToDemo = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const demoSection = document.getElementById("demo-video");
+    if (demoSection) {
+      demoSection.scrollIntoView({ 
+        behavior: "smooth", 
+        block: "start" 
+      });
+    }
+  };
+
   return (
     <section id="beranda" className="relative py-8 overflow-hidden">
       {/* Floating Elements */}
@@ -108,18 +120,18 @@ const HeroSection: React.FC = () => {
                 Mulai Gratis
               </Link>
 
-              <Link
-                href="https://drive.google.com/file/d/1PPeE9lz5tMAHhyyFXkiyhRXpNZOsY76X/view?usp=drive_link"
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* ✅ Updated button dengan smooth scroll */}
+              <a
+                href="#demo-video"
+                onClick={scrollToDemo}
                 className="inline-flex items-center justify-center rounded-full border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 text-lg font-bold px-8 py-4 group"
               >
                 <Play className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
                 Lihat Demo
-              </Link>
+              </a>
             </div>
 
-            {/* Stats */}
+            {/* ...existing stats code... */}
             <div
               className={`flex items-center space-x-6 sm:space-x-8 pt-4 transition-all duration-1000 delay-900 ${
                 isVisible
@@ -148,7 +160,7 @@ const HeroSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Content - Dashboard Preview */}
+          {/* ...existing right content code... */}
           <div
             className={`relative px-4 sm:px-6 lg:px-0 transition-all duration-1200 delay-400 ${
               isVisible

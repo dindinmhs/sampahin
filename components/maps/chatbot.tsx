@@ -684,7 +684,7 @@ const ChatBotFloating = ({
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tanya tentang kebersihan lokasi... (Live Streaming!)"
+              placeholder="Sorot, navigasi, dan tampilkan detail lokasi"
               className="w-full p-2 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={2}
               disabled={isLoading}
