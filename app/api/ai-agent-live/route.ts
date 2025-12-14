@@ -127,7 +127,7 @@ export async function GET(request: Request) {
           apiKey: process.env.GEMINI_API_KEY || '',
         });
 
-        const model = 'models/gemini-2.5-flash-live-preview';
+        const model = 'models/gemini-2.0-flash-exp';
         const tools = [{ functionDeclarations: functionDefinitions }];
 
         const sessionConfig = {
