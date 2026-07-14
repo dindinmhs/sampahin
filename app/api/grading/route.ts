@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       responseMimeType: "text/plain",
     };
 
-    const model = "gemma-3-4b-it";
+    const model = "gemma-4-26b-a4b-it";
 
     const contents = [
       {

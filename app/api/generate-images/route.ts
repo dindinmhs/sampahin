@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       ],
     };
 
-    const model = 'gemini-2.5-flash-image-preview';
+    const model = 'gemini-2.5-flash-lite';
 
     // Optimized: Generate all images in a single batch request to save tokens
     console.log(`Starting batch generation of ${titles.length} images...`);
